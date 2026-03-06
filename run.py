@@ -23,6 +23,14 @@ try:
     # Load environment variables
     load_dotenv()
 
+    from app import create_app
+    from app.extensions import db
+    from app.models import User
+    from werkzeug.security import generate_password_hash
+
+    # Expose 'app' for Gunicorn to import
+    app = create_app()
+
     def open_browser():
         """Wait for server to start then open browser"""
         time.sleep(2.0)
@@ -34,13 +42,6 @@ try:
         multiprocessing.freeze_support()
 
         try:
-            from app import create_app
-            from app.extensions import db
-            from app.models import User
-            from werkzeug.security import generate_password_hash
-
-            app = create_app()
-
             with app.app_context():
                 db.create_all()
                 # Seed admin only when explicitly allowed via environment variables
