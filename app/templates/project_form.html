@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'add_quotation' %}{{ t('title_add_quotation') }}{% elif mode == 'add' %}{{ t('title_add_project') }}{% else %}{{ t('title_edit_project') }}{% endif %}{% endblock %}
+
+{% block content %}
+<style>
+  /* Compact Form Styles */
+  .form-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-secondary);
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-control, .form-select {
+    font-size: 0.9rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 5px;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: var(--app-primary);
+    box-shadow: 0 0 0 3px rgba(4, 3, 141, 0.1);
+  }
+  
+  /* Project Type Toggle (Segmented Control) */
+  .type-toggle-group {
+    display: inline-flex;
+    background-color: #f8f9fa;
+    padding: 4px;
+    border-radius: 50px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1.25rem;
+  }
+  .type-option input {
+    display: none;
+  }
+  .type-card {
+    padding: 0.4rem 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    color: #6c757d;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+  }
+  .type-option input:checked + .type-card {
+    background-color: white;
+    color: var(--app-primary);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    border-color: #dee2e6;
+  }
+  .type-card:hover {
+    color: var(--app-primary);
+  }
+  
+  .required-asterisk { color: var(--app-danger); margin-left: 2px; }
+</style>
+
+<div class="container py-3">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ 'danger' if cat in ['error','danger'] else ('warning' if cat=='warning' else 'success') }} shadow-sm mb-3 border-0 rounded-3 d-flex align-items-center py-2 px-3">
+                <i class="me-2 {{ 'bi bi-exclamation-triangle-fill' if cat in ['error','danger','warning'] else 'bi bi-check-circle-fill' }}"></i>
+                <small class="fw-bold">{{ msg }}</small>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="card border-0 shadow-sm rounded-3">
+        <!-- Compact Header -->
+        <div class="card-header bg-white border-0 pt-3 px-3 pb-0 d-flex justify-content-between align-items-center">
+          <h5 class="fw-bold text-primary mb-0">
+            {% if mode == 'add_quotation' or (mode == 'add' and current_user.role == 'quotation') %}
+              <i class="fas fa-file-invoice-dollar me-2"></i>{{ t('title_add_quotation') }}
+            {% elif mode == 'add' %}
+              <i class="fas fa-plus-circle me-2"></i>{{ t('title_add_project') }}
+            {% else %}
+              <i class="fas fa-pencil-alt me-2"></i>{{ t('title_edit_project') }}
+            {% endif %}
+          </h5>
+          <a href="{{ url_for('projects.list', status='Quotation') if mode == 'add_quotation' else url_for('projects.list') }}" class="btn btn-light btn-sm rounded-circle" title="{{ t('btn_cancel') }}" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+             <i class="fas fa-times small"></i>
+          </a>
+        </div>
+
+        <div class="card-body p-3">
+          <form method="post" id="projectForm" novalidate action="{{ form_action or url_for('projects.add_project') }}"
+                data-msg-confirm-change-po="{{ t('msg_confirm_change_po') }}"
+                data-msg-po-exists="{{ t('msg_po_exists') }}"
+                data-existing-projects="{{ (projects_json or [])|tojson|forceescape }}"
+                data-mode="{{ mode }}"
+                data-initial-progress="{{ (form_values.progress if form_values else (project.progress if project else 0)) }}"
+                data-project-id="{{ project.id if project else '' }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% set p_type = 'FGC' %}
+            {% if mode == 'add_quotation' or current_user.role == 'quotation' %}
+                {% set p_type = 'FGC' %}
+            {% elif form_values and form_values.project_type %}
+                {% set p_type = form_values.project_type %}
+            {% elif mode == 'edit' and project %}
+                {% if project.po_number and project.po_number.isdigit() and project.po_number|length == 8 %}
+                    {% set p_type = 'FGC' %}
+                {% else %}
+                    {% set p_type = 'PEI' %}
+                {% endif %}
+            {% else %}
+                {% set p_type = 'FGC' %}
+            {% endif %}
+
+            {% set initial_status = 'New' %}
+            {% if mode == 'add_quotation' or current_user.role == 'quotation' %}
+                {% set initial_status = 'Quotation - Not Started' %}
+            {% elif form_values and form_values.status %}
+                {% set initial_status = form_values.status %}
+            {% elif mode == 'edit' and project %}
+                {% set initial_status = project.status %}
+            {% endif %}
+
+            <label class="form-label {% if mode != 'edit' %}d-none{% endif %}">{{ t('label_status') }}</label>
+            <select name="status" id="project_status" class="form-select mb-3 {% if mode != 'edit' %}d-none{% endif %}">
+                {% if mode == 'add_quotation' or current_user.role == 'quotation' %}
+                    <option value="Quotation - Not Started" {% if initial_status == 'Quotation - Not Started' or initial_status == 'Quotation' %}selected{% endif %}>{{ t('quotation_not_started') }}</option>
+                    <option value="Quotation - In Progress" {% if initial_status == 'Quotation - In Progress' %}selected{% endif %}>{{ t('quotation_doing') }}</option>
+                    <option value="Quotation - Quote Sent" {% if initial_status == 'Quotation - Quote Sent' %}selected{% endif %}>{{ t('quotation_quote_sent') }}</option>
+                    <option value="Quotation - Submitted" {% if initial_status == 'Quotation - Submitted' %}selected{% endif %}>{{ t('quotation_submitted') }}</option>
+                {% else %}
+                  <option value="New" {% if initial_status == 'New' %}selected{% endif %}>{{ t('status_New') }}</option>
+                  <option value="In Progress" {% if initial_status == 'In Progress' %}selected{% endif %}>{{ t('status_In_Progress') }}</option>
+                  <option value="On Hold" {% if initial_status == 'On Hold' %}selected{% endif %}>{{ t('status_On_Hold') }}</option>
+                  <option value="Completed" {% if initial_status == 'Completed' %}selected{% endif %}>{{ t('status_Completed') }}</option>
+                  <option value="Close" {% if initial_status == 'Close' %}selected{% endif %}>{{ t('status_Close') }}</option>
+                  <option value="Quotation" {% if initial_status == 'Quotation' %}selected{% endif %}>{{ t('status_Quotation') }}</option>
+                {% endif %}
+                </select>
+
+            <!-- Project Type Toggle -->
+            {% if mode == 'add_quotation' or current_user.role == 'quotation' %}
+                <input type="hidden" name="project_type" value="FGC" id="typeFGC_hidden">
+                <!-- Hidden inputs to satisfy JS selectors if needed, or modify JS -->
+                <div style="display:none;">
+                     <input type="radio" name="project_type" id="typeFGC" value="FGC" checked>
+                     <input type="radio" name="project_type" id="typePEI" value="PEI">
+                </div>
+            {% else %}
+            <div class="text-center">
+                <div class="type-toggle-group">
+                  <label class="type-option">
+                    <input type="radio" name="project_type" id="typeFGC" value="FGC" {% if p_type == 'FGC' %}checked{% endif %}>
+                    <div class="type-card">
+                      <span>🏭</span><span>{{ t('type_fgc_title') }}</span>
+                    </div>
+                  </label>
+                  <label class="type-option">
+                    <input type="radio" name="project_type" id="typePEI" value="PEI" {% if p_type == 'PEI' %}checked{% endif %}>
+                    <div class="type-card">
+                      <span>🏢</span><span>{{ t('type_pei_title') }}</span>
+                    </div>
+                  </label>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if mode == 'edit' %}
+            <div class="d-flex justify-content-end mb-2">
+            </div>
+            {% endif %}
+
+            <!-- Main Form Grid -->
+            <div class="row g-2">
+              <!-- Row 1: Client | Symbol | PO -->
+              <div class="col-md-5">
+                <label class="form-label">{{ t('label_client_field') }}<span class="required-asterisk">*</span></label>
+                <select name="client_id" id="client_id" class="form-select" required>
+                  <option value="">{{ t('select_client_placeholder') }}</option>
+                  {% for c in clients %}
+                    <option value="{{ c.id }}" data-symbol="{{ c.symbol|e }}"
+                      {% if form_values and form_values.client_id == (c.id|string) %}selected
+                      {% elif project and project.client_id == c.id %}selected
+                      {% elif (not form_values and not project) and request.args.get('client_id') == (c.id|string) %}selected{% endif %}>
+                      {{ c.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">{{ t('label_client_symbol') }}</label>
+                <input name="symbol" id="symbol" class="form-control bg-light text-center" readonly tabindex="-1"
+                       placeholder="..."
+                       value="{{ (form_values.symbol if form_values else (project.symbol if project else '')) }}">
+              </div>
+              <div class="col-md-5">
+                <label class="form-label">{{ t('label_project_number') }}<span class="required-asterisk">*</span></label>
+                <input name="po_number" id="po_number" class="form-control font-monospace fw-bold" inputmode="numeric"
+                       placeholder="{{ t('po_placeholder') }}"
+                       value="{{ (form_values.po_number if form_values else (project|format_code if project else '')) }}">
+                <div class="invalid-feedback" id="err-po-client"></div>
+              </div>
+
+              <!-- Row 2: Name & Deadline -->
+              <div class="col-md-8">
+                <label class="form-label">{{ t('label_project_name') }}<span class="required-asterisk">*</span></label>
+                <input name="name" id="name" class="form-control fw-bold" placeholder="{{ t('placeholder_project_name') }}" 
+                       value="{{ (form_values.name if form_values else (project.name if project else '')) }}">
+                <div class="invalid-feedback" id="err-name-client"></div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ t('label_deadline_field') }}<span class="required-asterisk">*</span></label>
+                <input name="deadline" id="deadline" type="date" class="form-control" required
+                       value="{{ (form_values.deadline if form_values else (project.deadline.isoformat() if project and project.deadline else '')) }}">
+                <div class="invalid-feedback" id="err-deadline-client"></div>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">{{ t('label_estimated_duration') }}</label>
+                <input type="number" step="0.5" min="0" name="estimated_duration" id="estimated_duration" class="form-control"
+                       value="{{ (form_values.estimated_duration if form_values else (project.estimated_duration if project else '')) }}">
+              </div>
+
+              <!-- Row 3: Address -->
+              <div class="col-12">
+                <label class="form-label">{{ t('label_address_field') }}<span class="required-asterisk">*</span></label>
+                <input name="address" id="address" class="form-control" required
+                       placeholder="{{ t('address_placeholder') }}"
+                       value="{{ (form_values.address if form_values else (project.address if project else '')) }}">
+                <div class="invalid-feedback" id="err-address-client"></div>
+              </div>
+              
+              <!-- Row 4: Scope -->
+              <div class="col-12">
+                <label class="form-label">{{ t('label_scope_field') }}<span class="required-asterisk">*</span></label>
+                <textarea name="scope" id="scope" rows="2" class="form-control" required placeholder="{{ t('scope_placeholder') }}">{{ (form_values.scope if form_values else (project.scope if project else '')) }}</textarea>
+                <div class="invalid-feedback" id="err-scope-client"></div>
+              </div>
+
+              <!-- Row 5: Source & Owners -->
+              <div class="col-md-6">
+                <label class="form-label">{{ t('label_source') }}</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted p-1 px-2"><i class="fas fa-folder-open small"></i></span>
+                    <input name="source" class="form-control" placeholder="{{ t('label_source') }}"
+                           value="{{ (form_values.source if form_values else ((project.source or '') if project else '')) }}">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ t('label_owners') }}</label>
+                {% set owner_ids = (project.owners|map(attribute='id')|list) if project else [] %}
+                <select name="owners" id="owners" class="form-select" multiple size="8" {% if current_user.role in ['member', 'quotation'] %}disabled{% endif %}>
+                  {% for u in users %}
+                    <option value="{{ u.id }}" {% if project and (u.id in owner_ids) %}selected{% endif %}>
+                      {{ u.display_name or u.username }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text small py-0 my-0" style="font-size: 0.7rem;">{{ t('msg_multi_select_instruction') }}</div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
+              <a href="{{ url_for('projects.list', status='Quotation') if mode == 'add_quotation' else url_for('projects.list') }}" class="btn btn-light btn-sm border px-3">{{ t('btn_cancel') }}</a>
+              <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm">
+                <i class="bi bi-save me-2"></i>{{ t('btn_save_project') }}
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function(){
+  const MSGS = {
+    name_required: "{{ t('err_name_required') if t('err_name_required') != 'err_name_required' else 'Vui lòng nhập tên dự án' }}",
+    po_required: "{{ t('err_po_required') }}",
+    po_format: "{{ t('err_po_format') }}",
+    address_required: "{{ t('err_address_required') }}",
+    deadline_required: "{{ t('err_deadline_required') }}",
+    deadline_past: "{{ t('err_deadline_past') }}",
+    scope_required: "{{ t('err_scope_required') }}"
+  };
+  const clientSelect = document.getElementById('client_id');
+  const symbolInput = document.getElementById('symbol');
+  const nameInput = document.getElementById('name');
+  const poInput = document.getElementById('po_number');
+  const form = document.getElementById('projectForm');
+  const addr = document.getElementById('address');
+  const dl = document.getElementById('deadline');
+  const scope = document.getElementById('scope');
+  const statusInput = document.getElementById('project_status');
+  const btnStatusQuotation = document.getElementById('btn-status-quotation');
+
+  // Helper: set symbol from currently selected option (if any)
+  function setSymbolFromSelect() {
+    if (!clientSelect || !symbolInput) return;
+    const opt = clientSelect.options[clientSelect.selectedIndex];
+    const symbol = opt ? opt.getAttribute('data-symbol') : '';
+    symbolInput.value = symbol || '';
+  }
+
+  // Auto-fill symbol when client changes
+  if (clientSelect) {
+    clientSelect.addEventListener('change', function(){
+      setSymbolFromSelect();
+    });
+    // set on load (for edit mode or preserved form_values)
+    setSymbolFromSelect();
+  }
+
+  const originalStatus = statusInput ? statusInput.value : 'New';
+  if (btnStatusQuotation && statusInput) {
+    btnStatusQuotation.addEventListener('click', function(){
+      if (statusInput.value === 'Quotation') {
+        statusInput.value = originalStatus || 'New';
+        btnStatusQuotation.classList.remove('btn-primary', 'active');
+        btnStatusQuotation.classList.add('btn-outline-secondary');
+      } else {
+        statusInput.value = 'Quotation';
+        btnStatusQuotation.classList.remove('btn-outline-secondary');
+        btnStatusQuotation.classList.add('btn-primary', 'active');
+      }
+    });
+  }
+
+  // Sanitize Project number input: digits only, max length 8 (Only if FGC)
+  if (poInput) {
+    poInput.addEventListener('input', function(){
+      const typeFGC = document.getElementById('typeFGC');
+      if (typeFGC && typeFGC.checked) {
+        const onlyDigits = (poInput.value || '').replace(/\D/g, '');
+        poInput.value = onlyDigits.slice(0, 8);
+        if (onlyDigits.length === 8) {
+          poInput.classList.remove('is-invalid');
+          const poErr = document.getElementById('err-po-client');
+          if (poErr) poErr.textContent = '';
+        }
+      }
+    });
+  }
+
+  // Force sync UI with Data (Fix for PEI highlighting issue)
+  function syncTypeWithPo() {
+      const typeFGC = document.getElementById('typeFGC');
+      const typePEI = document.getElementById('typePEI');
+      const poInput = document.getElementById('po_number');
+      const mode = window.PROJECT_INIT ? window.PROJECT_INIT.mode : 'add';
+      
+      if (!typeFGC || !typePEI || !poInput) return;
+
+      const val = poInput.value.trim();
+      
+      // Only intervene if there's a value or we are in edit mode
+      // If it's Add mode and empty, let the template default (FGC) stand
+      if (val) {
+          if (/^\d{8}$/.test(val)) {
+              if (!typeFGC.checked) {
+                  typeFGC.checked = true;
+                  typeFGC.dispatchEvent(new Event('change'));
+              }
+          } else {
+              // Any non-8-digit value (including "PEI") -> PEI Project
+              if (!typePEI.checked) {
+                  typePEI.checked = true;
+                  typePEI.dispatchEvent(new Event('change'));
+              }
+          }
+      } else if (mode === 'edit') {
+          // Edit mode but empty PO -> Default to PEI
+          if (!typePEI.checked) {
+              typePEI.checked = true;
+              typePEI.dispatchEvent(new Event('change'));
+          }
+      }
+  }
+
+  // Run immediately and on load to ensure state is correct
+  syncTypeWithPo();
+  window.addEventListener('load', syncTypeWithPo);
+
+  // Client-side validation
+  if (form) {
+    form.addEventListener('submit', function(e){
+      let ok = true;
+
+      // reset messages
+      const nameErr = document.getElementById('err-name-client');
+      const poErr = document.getElementById('err-po-client');
+      const addrErr = document.getElementById('err-address-client');
+      const dlErr = document.getElementById('err-deadline-client');
+      const scopeErr = document.getElementById('err-scope-client');
+      [nameErr, poErr, addrErr, dlErr, scopeErr].forEach(el => { if (el) el.textContent = ''; });
+      [nameInput, poInput, addr, dl, scope].forEach(el => el && el.classList.remove('is-invalid'));
+
+      // Name required
+      if (!nameInput || !nameInput.value || !nameInput.value.trim()) {
+        if (nameErr) nameErr.textContent = MSGS.name_required;
+        if (nameInput) nameInput.classList.add('is-invalid');
+        ok = false;
+      }
+
+      // Project number required: exactly 8 digits (Only if NOT PEI)
+      const typePEI = document.getElementById('typePEI');
+      if (!typePEI || !typePEI.checked) {
+          if (!poInput || !poInput.value || !poInput.value.trim()) {
+            if (poErr) poErr.textContent = MSGS.po_required;
+            if (poInput) poInput.classList.add('is-invalid');
+            ok = false;
+          }
+          if (poInput && poInput.value && !/^\d{8}$/.test(poInput.value.trim())) {
+            if (poErr) poErr.textContent = MSGS.po_format;
+            poInput.classList.add('is-invalid');
+            ok = false;
+          }
+      }
+
+      // Address required
+      if (!addr || !addr.value || !addr.value.trim()) {
+        if (addrErr) addrErr.textContent = MSGS.address_required;
+        if (addr) addr.classList.add('is-invalid');
+        ok = false;
+      }
+
+      // Deadline required and not in past
+      if (!dl || !dl.value) {
+        if (dlErr) dlErr.textContent = MSGS.deadline_required;
+        if (dl) dl.classList.add('is-invalid');
+        ok = false;
+      } else {
+        const d = new Date();
+        const todayStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        if (dl.value < todayStr) {
+          if (dlErr) dlErr.textContent = MSGS.deadline_past;
+          dl.classList.add('is-invalid');
+          ok = false;
+        }
+      }
+
+      // Scope required
+      if (!scope || !scope.value || !scope.value.trim()) {
+        if (scopeErr) scopeErr.textContent = MSGS.scope_required;
+        if (scope) scope.classList.add('is-invalid');
+        ok = false;
+      }
+
+      if (!ok) e.preventDefault();
+    });
+  }
+});
+</script>
+
+<!-- External helpers: auto-fill symbol, duplicate checks, status→progress options -->
+<script src="{{ url_for('static', filename='js/project_form.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_calendar_page') }}{% endblock %}
+{% block content %}
+<style>
+  .fc .fc-toolbar-title {
+    text-transform: capitalize;
+    color: var(--bs-body-color);
+    font-weight: 700;
+  }
+  .fc-event {
+    cursor: pointer;
+  }
+  
+  /* Custom Button Styling */
+  .fc .fc-button-primary {
+    background-color: var(--app-bg-surface);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+    text-transform: capitalize;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  /* Dark Theme Button Styling */
+  [data-theme="dark"] .fc .fc-button-primary {
+      background-color: #343a40; /* Nền xám đậm vừa phải */
+      border-color: #6c757d;     /* Viền xám sáng hơn để tách biệt */
+      color: #f8f9fa;            /* Chữ trắng sáng gần tuyệt đối */
+  }
+  
+  [data-theme="dark"] .fc .fc-button-primary:hover {
+      background-color: #495057; /* Hover sáng hơn nền một chút */
+      border-color: var(--app-primary); /* Viền chuyển màu primary khi hover */
+      color: #fff;               /* Chữ trắng tuyệt đối */
+  }
+
+  [data-theme="dark"] .fc .fc-button-primary:not(:disabled).fc-button-active, 
+  [data-theme="dark"] .fc .fc-button-primary:not(:disabled):active {
+    background-color: var(--app-primary); /* Active dùng màu primary */
+    border-color: var(--app-primary);
+    color: #fff;
+  }
+  
+  [data-theme="dark"] .fc .fc-button-primary:disabled {
+      background-color: #212529; /* Disabled nền rất tối */
+      border-color: #343a40;
+      color: #6c757d;            /* Chữ xám tối */
+      opacity: 0.6;
+  }
+
+  .fc-daygrid-day-number {
+    color: var(--bs-body-color);
+    text-decoration: none;
+  }
+  
+  [data-theme="dark"] .fc-daygrid-day-number {
+      color: var(--bs-body-color);
+  }
+  
+  .fc-col-header-cell-cushion {
+    color: var(--app-secondary);
+    text-decoration: none;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  
+  [data-theme="dark"] .fc-col-header-cell-cushion {
+      color: var(--app-secondary);
+  }
+  
+  .fc-day-today {
+    background-color: rgba(37, 99, 235, 0.05) !important;
+  }
+  
+  [data-theme="dark"] .fc-day-today {
+      background-color: rgba(59, 130, 246, 0.15) !important;
+  }
+  
+  .fc-scrollgrid-sync-inner {
+      background-color: var(--app-bg-surface);
+  }
+  
+  [data-theme="dark"] .fc-scrollgrid-sync-inner {
+      background-color: var(--app-bg-surface);
+  }
+  
+  [data-theme="dark"] .page-title i.text-primary {
+      color: var(--app-primary) !important;
+  }
+
+  /* H1 Hover */
+  [data-theme="dark"] .page-title {
+      transition: color 0.3s;
+  }
+  [data-theme="dark"] .page-title:hover {
+      color: var(--app-primary) !important;
+  }
+
+  /* Dark Theme List View Cushion (Div) */
+  [data-theme="dark"] .fc-theme-standard .fc-list-day-cushion {
+      background-color: #343a40 !important; /* Dark background */
+  }
+  
+  [data-theme="dark"] .fc-list-day-text,
+  [data-theme="dark"] .fc-list-day-side-text {
+      color: #e9ecef !important; /* Light text */
+      text-decoration: none !important;
+      font-weight: 600;
+  }
+
+  /* Hover Effects for Div */
+  [data-theme="dark"] .fc-theme-standard .fc-list-day-cushion:hover {
+      background-color: #495057 !important;
+      cursor: pointer;
+  }
+  [data-theme="dark"] .fc-theme-standard .fc-list-day-cushion:hover .fc-list-day-text,
+  [data-theme="dark"] .fc-theme-standard .fc-list-day-cushion:hover .fc-list-day-side-text {
+      color: var(--app-primary) !important; /* Highlight text */
+  }
+
+  /* Ensure Button Hover Text Contrast & Highlight */
+  [data-theme="dark"] .fc .fc-button-primary:hover {
+      background-color: #5a6268 !important; /* Lighter gray highlight */
+      color: #ffffff !important;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  /* Dark Theme List View Event Rows */
+  [data-theme="dark"] .fc-theme-standard .fc-list-event:hover td {
+      background-color: #495057 !important; /* Dark hover background */
+  }
+
+  [data-theme="dark"] .fc-list-event-title {
+      color: #e9ecef !important; /* Light text for title */
+  }
+
+  [data-theme="dark"] .fc-list-event-time {
+      color: #adb5bd !important; /* Slightly dimmer text for time */
+  }
+  
+  [data-theme="dark"] .fc-theme-standard .fc-list {
+      border-color: #495057;
+  }
+</style>
+
+<div class="container mt-2 fade-in" style="max-width: 65%;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="page-title">
+      <i class="fas fa-calendar-alt me-2 text-primary"></i>{{ t('title_calendar_page') }}
+    </h1>
+  </div>
+
+  <!-- Filters & Legend -->
+  <div class="row justify-content-center">
+    <!-- Main Calendar Column -->
+    <div class="col-12 mb-2">
+      <!-- Notifications Section -->
+      {% if notifications.today or notifications.upcoming %}
+      <div class="card mb-3 shadow-sm border-info">
+        <div class="card-header bg-info text-white py-2 px-3 d-flex align-items-center">
+            <i class="fas fa-bell me-2"></i><h6 class="mb-0">{{ t('notification_title') }}</h6>
+        </div>
+        <div class="list-group list-group-flush">
+            {% if notifications.today %}
+                {% for n in notifications.today %}
+                <a href="{{ url_for('projects.project_detail', project_id=n.obj.id) if n.type == 'project' else '#' }}" class="list-group-item list-group-item-action py-2 px-3">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <span class="text-danger fw-bold small">
+                            <i class="fas {{ 'fa-project-diagram' if n.type == 'project' else ('fa-calendar-check' if n.type == 'appointment' else 'fa-sticky-note') }} me-1"></i>
+                            {{ t('notification_today') }}: {{ n.msg }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            {% endif %}
+            
+            {% if notifications.upcoming %}
+                {% for n in notifications.upcoming %}
+                <a href="{{ url_for('projects.project_detail', project_id=n.obj.id) if n.type == 'project' else '#' }}" class="list-group-item list-group-item-action py-2 px-3">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <span class="text-secondary small">
+                            <i class="fas {{ 'fa-project-diagram' if n.type == 'project' else ('fa-calendar-check' if n.type == 'appointment' else 'fa-sticky-note') }} me-1"></i>
+                            {{ t('notification_upcoming') }}: {{ n.msg }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="card mb-3 shadow-sm">
+        <div class="card-body py-2">
+          <div class="row align-items-center">
+            <div class="col-md-6 d-flex gap-2">
+              <select id="clientFilter" class="form-select form-select-sm">
+                <option value="">{{ t('filter_all_clients') }}</option>
+                {% for c in clients %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              <select id="statusFilter" class="form-select form-select-sm">
+                <option value="">{{ t('filter_all_statuses') }}</option>
+                <option value="In Progress">{{ t('status_In_Progress') }}</option>
+                <option value="Completed">{{ t('status_Completed') }}</option>
+                <option value="Close">{{ t('status_Close') }}</option>
+                <option value="On Hold">{{ t('status_On_Hold') }}</option>
+                <option value="New">{{ t('status_New') }}</option>
+              </select>
+            </div>
+            <div class="col-md-6 text-md-end mt-2 mt-md-0">
+              <small class="text-muted me-2">{{ t('legend_title') }}</small>
+              <span class="badge bg-primary me-1">{{ t('legend_in_progress') }}</span>
+              <span class="badge me-1" style="background-color: var(--app-dark-success);">{{ t('legend_completed') }}</span>
+              <span class="badge me-1" style="background-color: #00405d;">{{ t('legend_close') }}</span>
+              <span class="badge bg-warning text-dark me-1">{{ t('status_On_Hold') }}</span>
+              <span class="badge bg-danger me-1">{{ t('legend_other') }}</span>
+              <span class="badge rounded-pill bg-warning text-dark me-1" style="width: 10px; height: 10px; padding: 0;">&nbsp;</span><small class="me-1">{{ t('type_note') }}</small>
+              <span class="badge rounded-pill me-1" style="width: 10px; height: 10px; background-color: var(--brand-purple); padding: 0;">&nbsp;</span><small>{{ t('type_appointment') }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <div id="calendar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Note Edit Modal -->
+<div class="modal fade" id="noteEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ t('title_edit_note_modal') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editNoteId">
+        
+        <div class="mb-3">
+          <label class="form-label text-muted small fw-bold">{{ t('label_note_type') }}</label>
+          <div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="editNoteType" id="editTypeNote" value="note">
+              <label class="form-check-label" for="editTypeNote"><i class="fas fa-sticky-note text-warning me-1"></i>{{ t('type_note') }}</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="editNoteType" id="editTypeAppointment" value="appointment">
+              <label class="form-check-label" for="editTypeAppointment"><i class="fas fa-calendar-check text-primary me-1"></i>{{ t('type_appointment') }}</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="editNoteContent" class="form-label text-muted small fw-bold">{{ t('placeholder_note_content') }}</label>
+          <textarea class="form-control" id="editNoteContent" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-danger" id="btnDeleteNote"><i class="fas fa-trash-alt me-2"></i>{{ t('btn_delete_note') }}</button>
+        <div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_close') }}</button>
+          <button type="button" class="btn btn-primary" id="btnUpdateNote"><i class="fas fa-save me-2"></i>{{ t('btn_update_note') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Date Options Modal -->
+<div class="modal fade" id="dateOptionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dateOptionsTitle"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-grid gap-2">
+          <button id="btnAddProject" class="btn btn-primary"><i class="fas fa-plus-circle me-2"></i>{{ t('btn_add_project_here') }}</button>
+          <hr>
+          <h6>{{ t('btn_add_note') }} / {{ t('type_appointment') }}</h6>
+          
+          <div class="mb-2">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="noteType" id="typeNote" value="note" checked>
+              <label class="form-check-label" for="typeNote"><i class="fas fa-sticky-note text-warning me-1"></i>{{ t('type_note') }}</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="noteType" id="typeAppointment" value="appointment">
+              <label class="form-check-label" for="typeAppointment"><i class="fas fa-calendar-check text-primary me-1"></i>{{ t('type_appointment') }}</label>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <input type="text" id="noteContent" class="form-control" placeholder="{{ t('placeholder_note_content') }}">
+            <button class="btn btn-outline-secondary" type="button" id="btnSaveNote"><i class="fas fa-save"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FullCalendar -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+{% block scripts %}
+<script id="calendar-events-data" type="application/json">
+[
+    {% for p in projects %}
+    {
+      "id": "proj-{{ p.id }}",
+      "title": {{ (p.name|project_title + ' (' + p.progress|string + '%)')|tojson }},
+      "start": "{{ p.deadline.strftime('%Y-%m-%d') if p.deadline }}",
+      "url": "{{ url_for('projects.project_detail', project_id=p.id) }}",
+      "color": "{% if p.status == 'Close' %}#00405d{% elif p.status == 'Completed' %}var(--app-dark-success){% elif p.status == 'In Progress' %}var(--app-primary){% elif p.status == 'On Hold' %}var(--app-warning){% else %}var(--app-danger){% endif %}",
+      "extendedProps": {
+        "type": "project",
+        "clientId": {{ p.client_id if p.client_id else 'null' }},
+        "status": "{{ p.status }}",
+        "fullTitle": {{ p.name|tojson }},
+        "clientSymbol": "{{ p.client.symbol if p.client else '—' }}",
+        "deadline": "{{ p.deadline.strftime('%b %d') if p.deadline else '' }}"
+      }
+    }{% if not loop.last or notes %},{% endif %}
+    {% endfor %}
+    {% for n in notes %}
+    {
+      "id": "note-{{ n.id }}",
+      "title": {{ (('📝' if n.note_type != 'appointment' else '📅') + ' ' + n.content)|tojson }},
+      "start": "{{ n.note_date.strftime('%Y-%m-%d') }}",
+      "color": "{{ 'var(--app-warning)' if n.note_type != 'appointment' else 'var(--brand-purple)' }}",
+      "textColor": "{{ '#000' if n.note_type != 'appointment' else '#fff' }}",
+      "display": "block",
+      "extendedProps": {
+        "type": "{{ n.note_type }}",
+        "noteId": {{ n.id }},
+        "content": {{ n.content|tojson }},
+        "ownerId": {{ n.user_id }}
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+<div id="calendar-config" 
+     data-lang="{{ 'vi' if current_lang == 'vi' else 'en' }}"
+     data-trans-in-progress="{{ t('legend_in_progress') }}"
+     data-trans-completed="{{ t('legend_completed') }}"
+     data-trans-close="{{ t('status_Close') }}"
+     data-trans-suspended="{{ t('status_On_Hold') }}"
+     data-trans-list="{{ t('calendar_list') }}"
+     data-trans-year="{{ t('calendar_year') }}"
+     data-trans-month="{{ t('calendar_month') }}"
+     data-trans-week="{{ t('calendar_week') }}"
+     data-trans-deadline="{{ t('deadline') }}"
+     data-trans-date-options-title="{{ t('modal_date_options_title') }}"
+     data-trans-confirm-delete-note="{{ t('confirm_delete_note') }}"
+     data-url-add-project="{{ url_for('projects.add_project') }}"
+     data-csrf-token="{{ csrf_token() }}"
+     style="display:none;"></div>
+<script nonce="{{ g.csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+  var calendarEl = document.getElementById('calendar');
+  var currentUserId = Number("{{ current_user.id }}");
+  var config = document.getElementById('calendar-config').dataset;
+
+  // Translation keys for JS
+  const TRANS = {
+    inProgress: config.transInProgress,
+    completed: config.transCompleted,
+    close: config.transClose,
+    suspended: config.transSuspended,
+    list: config.transList,
+    year: config.transYear,
+    month: config.transMonth,
+    week: config.transWeek,
+    deadline: config.transDeadline
+  };
+  
+  // Prepare events data
+  var allEvents = JSON.parse(document.getElementById('calendar-events-data').textContent);
+
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    height: 750,
+    locale: config.lang,
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,listMonth,multiMonthYear'
+    },
+    buttonText: {
+      listMonth: TRANS.list,
+      multiMonthYear: TRANS.year,
+      month: TRANS.month,
+      week: TRANS.week
+    },
+    multiMonthMaxColumns: 3,
+    events: allEvents,
+    dateClick: function(info) {
+      var dateStr = info.dateStr;
+      var dateObj = new Date(dateStr);
+      // Format: Jan 02, 2026
+      var formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+      document.getElementById('dateOptionsTitle').innerText = config.transDateOptionsTitle.replace('{date}', formattedDate);
+      
+      // Setup Add Project Button
+      document.getElementById('btnAddProject').onclick = function() {
+        window.location.href = config.urlAddProject + "?deadline=" + dateStr;
+      };
+      
+      // Setup Add Note Button
+      document.getElementById('btnSaveNote').onclick = function() {
+        var content = document.getElementById('noteContent').value;
+        var type = document.querySelector('input[name="noteType"]:checked').value;
+        if(!content) return;
+        
+        fetch('/api/calendar/notes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': config.csrfToken
+          },
+          body: JSON.stringify({date: dateStr, content: content, type: type})
+        })
+        .then(r => r.json())
+        .then(data => {
+          if(data.error) {
+            alert(data.error);
+          } else {
+            calendar.addEvent({
+              id: "note-" + data.id,
+              title: (data.type === 'appointment' ? "📅 " : "📝 ") + data.content,
+              start: data.date,
+              color: data.type === 'appointment' ? "#8b5cf6" : "#f59e0b",
+              textColor: data.type === 'appointment' ? "#fff" : "#000",
+              display: 'block',
+              extendedProps: {
+                type: data.type,
+                noteId: data.id,
+                content: data.content,
+                ownerId: currentUserId
+              }
+            });
+            document.getElementById('noteContent').value = '';
+            var modalEl = document.getElementById('dateOptionsModal');
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+          }
+        });
+      };
+      
+      new bootstrap.Modal(document.getElementById('dateOptionsModal')).show();
+    },
+    datesSet: function(info) {
+       if (info.view.type === 'multiMonthYear') {
+         calendar.setOption('height', 'auto');
+       } else {
+         calendar.setOption('height', 750);
+       }
+    },
+    eventDidMount: function(info) {
+      // Tooltip using Bootstrap 5
+      var props = info.event.extendedProps;
+      
+      if (props.type === 'note' || props.type === 'appointment') {
+        new bootstrap.Tooltip(info.el, {
+          title: props.content,
+          placement: 'top',
+          trigger: 'hover',
+          container: 'body'
+        });
+        return;
+      }
+      
+      var statusText = props.status;
+      if(statusText === 'In Progress') statusText = TRANS.inProgress;
+      if(statusText === 'Completed') statusText = TRANS.completed;
+      if(statusText === 'On Hold') statusText = TRANS.suspended;
+      if(statusText === 'Close') statusText = TRANS.close;
+
+      var content = `
+        <div class="text-start">
+          <strong>${props.fullTitle}</strong><br/>
+          <span class="badge bg-light text-dark border mt-1">${props.clientSymbol}</span>
+          <span class="ms-1 small text-muted">${statusText}</span><br/>
+          <small>${TRANS.deadline}: ${props.deadline}</small>
+        </div>
+      `;
+      
+      new bootstrap.Tooltip(info.el, {
+        title: content,
+        html: true,
+        placement: 'top',
+        trigger: 'hover',
+        container: 'body'
+      });
+    },
+    eventClick: function(info) {
+      info.jsEvent.preventDefault();
+      var props = info.event.extendedProps;
+      
+      if (props.type === 'note' || props.type === 'appointment') {
+        // Open Edit Modal instead of confirm delete
+        document.getElementById('editNoteId').value = props.noteId;
+        document.getElementById('editNoteContent').value = props.content;
+        
+        if (props.type === 'appointment') {
+          document.getElementById('editTypeAppointment').checked = true;
+        } else {
+          document.getElementById('editTypeNote').checked = true;
+        }
+        
+        // Permission check
+        var isOwner = (props.ownerId === currentUserId);
+        var btnUpdate = document.getElementById('btnUpdateNote');
+        var btnDelete = document.getElementById('btnDeleteNote');
+        var inputContent = document.getElementById('editNoteContent');
+        var inputRadios = document.querySelectorAll('input[name="editNoteType"]');
+
+        if (isOwner) {
+            btnUpdate.style.display = 'inline-block';
+            btnDelete.style.display = 'inline-block';
+            inputContent.disabled = false;
+            inputRadios.forEach(el => el.disabled = false);
+        } else {
+            btnUpdate.style.display = 'none';
+            btnDelete.style.display = 'none';
+            inputContent.disabled = true;
+            inputRadios.forEach(el => el.disabled = true);
+        }
+
+        // Setup Update Button
+        document.getElementById('btnUpdateNote').onclick = function() {
+          var noteId = document.getElementById('editNoteId').value;
+          var content = document.getElementById('editNoteContent').value;
+          var type = document.querySelector('input[name="editNoteType"]:checked').value;
+          
+          if (!content) return;
+          
+          fetch('/api/calendar/notes/' + noteId, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': config.csrfToken
+            },
+            body: JSON.stringify({content: content, type: type})
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.error) {
+              alert(data.error);
+            } else {
+              // Remove old event and add updated one (simplest way to update display)
+              info.event.remove();
+              calendar.addEvent({
+                id: "note-" + data.id,
+                title: (data.type === 'appointment' ? "📅 " : "📝 ") + data.content,
+                start: data.date,
+                color: data.type === 'appointment' ? "#8b5cf6" : "#f59e0b",
+                textColor: data.type === 'appointment' ? "#fff" : "#000",
+                display: 'block',
+                extendedProps: {
+                  type: data.type,
+                  noteId: data.id,
+                  content: data.content,
+                  ownerId: currentUserId
+                }
+              });
+              
+              var modalEl = document.getElementById('noteEditModal');
+              var modal = bootstrap.Modal.getInstance(modalEl);
+              modal.hide();
+            }
+          });
+        };
+        
+        // Setup Delete Button
+        document.getElementById('btnDeleteNote').onclick = function() {
+          if(confirm(config.transConfirmDeleteNote)) {
+            var noteId = document.getElementById('editNoteId').value;
+            fetch('/api/calendar/notes/' + noteId, {
+              method: 'DELETE',
+              headers: {
+                  'X-CSRFToken': config.csrfToken
+              }
+            })
+            .then(r => r.json())
+            .then(data => {
+              if(data.success) {
+                info.event.remove();
+                var modalEl = document.getElementById('noteEditModal');
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+              } else {
+                alert(data.error || 'Error');
+              }
+            });
+          }
+        };
+        
+        new bootstrap.Modal(document.getElementById('noteEditModal')).show();
+        
+      } else if (info.event.url) {
+        window.location.href = info.event.url;
+      }
+    }
+  });
+
+  calendar.render();
+
+  // Filter Logic
+  function applyFilters() {
+    var clientId = document.getElementById('clientFilter').value;
+    var status = document.getElementById('statusFilter').value;
+
+    var filteredEvents = allEvents.filter(function(event) {
+      var matchClient = true;
+      if (clientId) {
+        matchClient = (event.extendedProps.clientId == clientId);
+      }
+      
+      var matchStatus = true;
+      if (status) {
+        matchStatus = (event.extendedProps.status == status);
+      }
+
+      return matchClient && matchStatus;
+    });
+
+    calendar.removeAllEvents();
+    calendar.addEventSource(filteredEvents);
+  }
+
+  document.getElementById('clientFilter').addEventListener('change', applyFilters);
+  document.getElementById('statusFilter').addEventListener('change', applyFilters);
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ page_title or report_title }}</title>
+  <style>
+    body { font-family: DejaVu Sans, sans-serif; font-size: 13px; }
+    @page { size: A4 landscape; margin: 10mm; }
+
+    /* Screen Preview Styles */
+    @media screen {
+        body { background-color: #525659; margin: 0; }
+        .report-container {
+            background-color: white;
+            width: 297mm;
+            min-height: 210mm;
+            margin: 30px auto;
+            padding: 10mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+        }
+    }
+    
+    /* Toolbar Styles (Hidden in Print) */
+    .toolbar {
+        background-color: #f8f9fa;
+        padding: 10px 20px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .toolbar-group {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+    .btn {
+        display: inline-block;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .btn-primary { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+    .btn-primary:hover { background-color: #0b5ed7; border-color: #0a58ca; }
+    .btn-danger { background-color: #dc3545; color: white; border-color: #dc3545; }
+    .btn-danger:hover { background-color: #bb2d3b; border-color: #b02a37; }
+    .btn-secondary { background-color: #6c757d; color: white; border-color: #6c757d; }
+    .btn-secondary:hover { background-color: #5c636a; border-color: #565e64; }
+    
+    .radio-group {
+        display: flex;
+        gap: 10px;
+        background: white;
+        padding: 4px;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+    .radio-option {
+        padding: 4px 8px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-weight: 500;
+        color: #495057;
+        text-decoration: none;
+    }
+    .radio-option.active {
+        background-color: #e9ecef;
+        color: #0d6efd;
+        font-weight: bold;
+    }
+    
+    @media print {
+        @page { size: A4 landscape; margin: 10mm; }
+        .toolbar { display: none !important; }
+        body { margin: 0; padding: 0; background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .report-container { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+        body::before { display: block; } /* Ensure watermark shows */
+    }
+
+    body::before {
+      content: "FG Consulting Engineers";
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: 80px;
+      color: rgba(4, 3, 141, 0.05);
+      z-index: -1;
+      white-space: nowrap;
+    }
+    .header-table { width: 100%; border-bottom: 2px solid #04038d; margin-bottom: 20px; padding-bottom: 10px; }
+    .header-table td { border: none; padding: 0; vertical-align: middle; }
+    .logo { height: 60px; }
+    .report-title { font-size: 20px; color: #04038d; font-weight: bold; text-align: center; text-transform: uppercase; white-space: nowrap; }
+    .report-meta { text-align: right; font-size: 11px; color: #555; }
+    
+    .summary-box { border: 2px solid #04038d; padding: 15px; margin-bottom: 20px; background: #f0f4ff; font-size: 13px; }
+    .summary-box h3 { margin-top: 0; color: #04038d; margin-bottom: 10px; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0px; font-size: 11px; table-layout: fixed; }
+    th { background-color: #f0f4ff; color: #04038d; padding: 10px 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-print-color-adjust: exact; print-color-adjust: exact; border: 1px solid #ccc; }
+    td { border: 1px solid #ccc; padding: 8px; vertical-align: top; word-wrap: break-word; }
+    
+    /* Fixed Column Widths */
+    .col-name { width: auto; text-align: left; }
+    .col-code { width: 9%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; vertical-align: middle; }
+    .col-deadline { width: 8%; text-align: center; vertical-align: middle; }
+    .col-progress { width: 6%; text-align: center; vertical-align: middle; }
+    .col-update { width: 35%; text-align: left; }
+    
+    /* Header specific overrides if needed */
+    th.col-name { text-align: center; }
+    th.col-update { text-align: center; }
+
+    tr:nth-child(even) { background-color: #f9f9f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer { margin-top: 20px; font-size: 12px; text-align: right; color: #555; border-top: 1px solid #ccc; padding-top: 5px; }
+  </style>
+</head>
+<body>
+  {% if is_print_mode %}
+  <div class="toolbar">
+      <form method="GET" action="{{ url_for('export.print_dashboard_html') }}" class="toolbar-group" style="display: flex; gap: 10px; align-items: center;">
+          <span style="font-weight: bold; color: #333;">{{ t('label_view_by') }}:</span>
+          <select name="group_by" onchange="this.form.submit()" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+              <option value="status" {% if group_by == 'status' %}selected{% endif %}>{{ t('group_by_status') }}</option>
+              <option value="client" {% if group_by == 'client' %}selected{% endif %}>{{ t('group_by_client') }}</option>
+              <option value="type" {% if group_by == 'type' %}selected{% endif %}>{{ t('group_by_type') }}</option>
+              <option value="owner" {% if group_by == 'owner' %}selected{% endif %}>{{ t('group_by_owner') }}</option>
+              <option value="quotation" {% if group_by == 'quotation' %}selected{% endif %}>{{ t('status_Quotation') }}</option>
+          </select>
+          
+          <span style="font-weight: bold; color: #333; margin-left: 10px;">{{ t('label_time_filter') }}:</span>
+          
+          <select id="quickFilter" onchange="applyQuickFilter(this.value)" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+              <option value="">{{ t('quick_filter_placeholder') }}</option>
+              <option value="this_month">{{ t('filter_this_month') }}</option>
+              <option value="last_month">{{ t('filter_last_month') }}</option>
+              <option value="this_year">{{ t('filter_this_year') }}</option>
+              <option value="last_year">{{ t('filter_last_year') }}</option>
+          </select>
+          
+          <span style="color: #333;">{{ t('deadline_from') }}:</span>
+          <input type="date" name="start_date" id="startDate" value="{{ request.values.get('start_date', '') }}" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+          
+          <span style="color: #333;">{{ t('deadline_to') }}:</span>
+          <input type="date" name="end_date" id="endDate" value="{{ request.values.get('end_date', '') }}" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+          
+          <button type="submit" class="btn btn-primary" style="padding: 4px 12px; font-size: 13px;">{{ t('btn_filter') }}</button>
+      </form>
+
+      <div class="toolbar-group">
+          <button onclick="window.print()" class="btn btn-primary">
+               {{ t('btn_print_browser_action') }}
+          </button>
+          <button onclick="window.open('', '_self', ''); window.close();" class="btn btn-secondary">
+               {{ t('btn_close') }}
+          </button>
+      </div>
+  </div>
+  
+<script>
+function applyQuickFilter(val) {
+    const today = new Date();
+    let start, end;
+    
+    if (val === 'this_month') {
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    } else if (val === 'last_month') {
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+    } else if (val === 'this_year') {
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
+    } else if (val === 'last_year') {
+        start = new Date(today.getFullYear() - 1, 0, 1);
+        end = new Date(today.getFullYear() - 1, 11, 31);
+    }
+    
+    if (start && end) {
+        const formatDate = (d) => {
+            let month = '' + (d.getMonth() + 1),
+                day = '' + d.getDate(),
+                year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+
+            return [year, month, day].join('-');
+        }
+        
+        document.getElementById('startDate').value = formatDate(start);
+        document.getElementById('endDate').value = formatDate(end);
+    }
+}
+</script>
+  {% endif %}
+
+  <div class="report-container">
+    <table class="header-table">
+      <tr>
+        <td style="width: 20%;">
+          <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
+        </td>
+        <td style="width: 60%;">
+          <div class="report-title">{{ report_title }}</div>
+        </td>
+        <td style="width: 20%;">
+          <div class="report-meta">
+            <strong>Generated at:</strong><br>
+            {{ current_date }}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+  {% set total = projects|length %}
+  {% set completed = (projects|selectattr('status','equalto','Completed')|list)|length %}
+  {% set in_progress = (projects|selectattr('status','equalto','In Progress')|list)|length %}
+  {% set new_projects = (projects|selectattr('status','equalto','New')|list)|length
+                     + (projects|selectattr('status','equalto','Quotation - Submitted')|list)|length %}
+  {% set on_hold = (projects|selectattr('status','equalto','On Hold')|list)|length + (projects|selectattr('status','equalto','Suspended')|list)|length %}
+  {% set closed_count = (projects|selectattr('status','equalto','Close')|list)|length %}
+  {% set quotation = (projects|selectattr('status','equalto','Quotation')|list)|length
+                     + (projects|selectattr('status','equalto','Quotation - Not Started')|list)|length
+                     + (projects|selectattr('status','equalto','Quotation - In Progress')|list)|length
+                     + (projects|selectattr('status','equalto','Quoting In Progress')|list)|length
+                     + (projects|selectattr('status','equalto','Quotation - Quote Sent')|list)|length %}
+  {% set avg_progress = ((projects|map(attribute='progress')|sum) / (total or 1))|round(1) %}
+  
+  <div class="summary-box" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+    <h3 style="width: 100%; border-bottom: 2px solid #04038d; margin-bottom: 15px; padding-bottom: 5px; color: #04038d;">{{ t('report_summary') }}</h3>
+    
+    <div style="display: flex; justify-content: space-between;">
+        {# Column 1: Overall Stats #}
+        <div style="flex: 1.2; border-right: 1px solid #ddd; padding-right: 80px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                <strong style="margin-right: 15px;">Overall Project Progress:</strong> 
+                <span style="font-weight: bold; color: #04038d; font-size: 15px;">{{ total - quotation }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                <strong style="margin-right: 15px;">{{ t('report_avg_progress') }}:</strong> 
+                <span style="font-weight: bold; color: #04038d; font-size: 15px;">{{ avg_progress }}%</span>
+            </div>
+        </div>
+
+        {# Column 2: Active Statuses (including Quotation) #}
+        <div style="flex: 1.2; border-right: 1px solid #ddd; padding-right: 40px; padding-left: 15px;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between;">
+                {# Row 1 #}
+                <div style="width: 48%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                    <div>
+                        <span style="display:inline-block; width: 8px; height: 8px; background-color: #cbd5e1; border-radius: 50%; margin-right: 8px;"></span>
+                        <strong>{{ t('status_New') }}:</strong> 
+                    </div>
+                    <span style="font-weight: bold; font-size: 14px;">{{ new_projects }}</span>
+                </div>
+                <div style="width: 48%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                    <div>
+                        <span style="display:inline-block; width: 8px; height: 8px; background-color: #04038d; border-radius: 50%; margin-right: 8px;"></span>
+                        <strong>{{ t('status_In_Progress') }}:</strong> 
+                    </div>
+                    <span style="font-weight: bold; font-size: 14px;">{{ in_progress }}</span>
+                </div>
+                
+                {# Row 2 #}
+                <div style="width: 48%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                    <div>
+                        <span style="display:inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 50%; margin-right: 8px;"></span>
+                        <strong>{{ t('status_On_Hold') }}:</strong> 
+                    </div>
+                    <span style="font-weight: bold; font-size: 14px;">{{ on_hold }}</span>
+                </div>
+                <div style="width: 48%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                    <div>
+                        <span style="display:inline-block; width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; margin-right: 8px;"></span>
+                        <strong>{{ t('status_Completed') }}:</strong> 
+                    </div>
+                    <span style="font-weight: bold; font-size: 14px;">{{ completed }}</span>
+                </div>
+            </div>
+        </div>
+
+        {# Column 3: Quotation, Closed & Delay #}
+        <div style="flex: 1; padding-left: 15px; padding-right: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                <div>
+                    <span style="display:inline-block; width: 8px; height: 8px; background-color: #6f42c1; border-radius: 50%; margin-right: 8px;"></span>
+                    <strong>{{ t('status_Quotation') }}:</strong> 
+                </div>
+                <span style="font-weight: bold; font-size: 14px;">{{ quotation }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap;">
+                <div>
+                    <span style="display:inline-block; width: 8px; height: 8px; background-color: #6c757d; border-radius: 50%; margin-right: 8px;"></span>
+                    <strong>{{ t('status_Close') }}:</strong> 
+                </div>
+                <span style="font-weight: bold; font-size: 14px;">{{ closed_count }}</span>
+            </div>
+            {% set overdue_count = (projects|selectattr('deadline')|selectattr('deadline', '<', current_date_obj)|selectattr('status','ne','Completed')|selectattr('status','ne','Close')|list)|length %}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; white-space: nowrap; color: #dc3545;">
+                <div>
+                    <span style="display:inline-block; width: 8px; height: 8px; background-color: #dc3545; border-radius: 50%; margin-right: 8px;"></span>
+                    <strong>{{ t('report_overdue') }}:</strong> 
+                </div>
+                <span style="font-weight: bold; font-size: 14px;">{{ overdue_count }}</span>
+            </div>
+        </div>
+    </div>
+  </div>
+
+    {% set status_colors = {
+        'New': '#cbd5e1',
+        'In Progress': '#04038d',
+        'On Hold': '#f59e0b',
+        'Completed': '#10b981',
+        'Close': '#6c757d',
+        'Quotation': '#6f42c1'
+    } %}
+    
+    {% if group_by == 'status' %}
+    {# --- GROUP BY STATUS --- #}
+    {% set all_statuses = ['Quotation', 'New', 'In Progress', 'Completed', 'On Hold', 'Close'] %}
+    {% for status in all_statuses %}
+      {% if status == 'On Hold' %}
+        {% set status_projects = (projects|selectattr('status', 'equalto', 'On Hold')|list) + (projects|selectattr('status', 'equalto', 'Suspended')|list) %}
+      {% elif status == 'Quotation' %}
+        {% set status_projects = [] %}
+        {% for p in projects %}
+          {% if (p.status.startswith('Quotation') or p.status.startswith('Quoting')) and p.status != 'Quotation - Won' %}
+            {% set _ = status_projects.append(p) %}
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        {% set status_projects = projects|selectattr('status', 'equalto', status)|list %}
+      {% endif %}
+      {% if status_projects %}
+        {% set status_key = 'status_' ~ status.replace(' ', '_') %}
+        <h4 style="color: #04038d; margin-bottom: 2px; margin-top: 15px; border-bottom: 2px solid #04038d; padding-bottom: 2px; display: inline-block;">{{ t(status_key) }}</h4>
+        <table style="border-top: 2px solid #04038d;">
+          <thead>
+            <tr>
+              <th class="col-name">{{ t('col_project_name') }}</th>
+              <th class="col-code">{{ t('col_code') }}</th>
+              <th class="col-deadline">{{ t('col_deadline') }}</th>
+              <th class="col-progress">{{ t('col_progress') }}</th>
+              <th class="col-update">{{ t('col_last_update') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for project in status_projects %}
+            {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+            <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+              <td class="col-name">
+                <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    {% if project.owners %}
+                        {% for owner in project.owners %}
+                            <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-right: 3px; margin-bottom: 2px;">{{ owner.display_name or owner.username }}</span>
+                        {% endfor %}
+                    {% elif project.owner %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.owner.display_name or project.owner.username }}</span>
+                    {% else %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-style: italic; color: #777;">{{ t('report_unassigned') }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.status }}</span>
+                </div>
+              </td>
+              <td class="col-code">{{ project|format_code }}</td>
+              <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+              <td class="col-progress">{{ project.progress }}%</td>
+              <td class="col-update">
+                {% if project.display_latest_update_date %}
+                <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+                {% else %}
+                <div style="margin-bottom: 2px;">—</div>
+                {% endif %}
+                <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% endfor %}
+
+  {% elif group_by == 'type' %}
+    {# --- GROUP BY TYPE (FGC / PEI) --- #}
+    {% set types = ['FGC', 'PEI'] %}
+    {% for type in types %}
+        {# Filter projects based on type #}
+        {% set type_projects = [] %}
+        {% for p in projects %}
+            {% set code = p|format_code %}
+            {# Logic to detect FGC vs PEI: Check formatted code (8 digits) #}
+            {% set is_fgc = (code and code|length == 8 and code.isdigit()) %}
+
+            {% if type == 'FGC' and is_fgc %}
+                {% set _ = type_projects.append(p) %}
+            {% elif type == 'PEI' and not is_fgc %}
+                {% set _ = type_projects.append(p) %}
+            {% endif %}
+        {% endfor %}
+
+        {% if type_projects %}
+            <h4 style="color:#04038d; margin-bottom: 2px; margin-top: 15px;">{{ t('type_' + type) }}</h4>
+            <table>
+            <thead>
+            <tr>
+              <th class="col-name">{{ t('col_project_name') }}</th>
+              <th class="col-code">{{ t('col_code') }}</th>
+              <th class="col-deadline">{{ t('col_deadline') }}</th>
+              <th class="col-progress">{{ t('col_progress') }}</th>
+              <th class="col-update">{{ t('col_last_update') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for project in type_projects %}
+            {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+            <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+              <td class="col-name">
+                <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    {% if project.owners %}
+                        {% for owner in project.owners %}
+                            <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-right: 3px; margin-bottom: 2px;">{{ owner.display_name or owner.username }}</span>
+                        {% endfor %}
+                    {% elif project.owner %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.owner.display_name or project.owner.username }}</span>
+                    {% else %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-style: italic; color: #777;">{{ t('report_unassigned') }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.status }}</span>
+                </div>
+              </td>
+              <td class="col-code">{{ project|format_code }}</td>
+              <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+              <td class="col-progress">{{ project.progress }}%</td>
+              <td class="col-update">
+                {% if project.display_latest_update_date %}
+                <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+                {% else %}
+                <div style="margin-bottom: 2px;">—</div>
+                {% endif %}
+                <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+              </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            </table>
+        {% endif %}
+    {% endfor %}
+
+  {% elif group_by == 'quotation' %}
+    {# --- GROUP BY QUOTATION --- #}
+    <h4 style="color:#6f42c1; margin-bottom: 2px; margin-top: 15px; border-bottom: 2px solid #6f42c1; padding-bottom: 2px; display: inline-block;">{{ t('status_Quotation') }}</h4>
+    <table style="border-top: 2px solid #6f42c1;">
+      <thead>
+        <tr>
+          <th class="col-name" style="color: #6f42c1;">{{ t('col_project_name') }}</th>
+          <th class="col-code" style="color: #6f42c1;">{{ t('col_code') }}</th>
+          <th class="col-deadline" style="color: #6f42c1;">{{ t('col_deadline') }}</th>
+          <th class="col-progress" style="color: #6f42c1;">{{ t('col_progress') }}</th>
+          <th class="col-update" style="color: #6f42c1;">{{ t('col_last_update') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+        {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+        <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+          <td class="col-name">
+            <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+            <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.status }}</span>
+            </div>
+          </td>
+          <td class="col-code">{{ project|format_code }}</td>
+          <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+          <td class="col-progress">{{ project.progress }}%</td>
+          <td class="col-update">
+            {% if project.display_latest_update_date %}
+            <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+            {% else %}
+            <div style="margin-bottom: 2px;">—</div>
+            {% endif %}
+            <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif group_by == 'owner' %}
+    {# --- GROUP BY OWNER --- #}
+    {% set owner_ids = [] %}
+    {% set unique_owners = [] %}
+    {% for p in projects %}
+        {% if p.owner and p.owner.id not in owner_ids %}
+            {% set _ = owner_ids.append(p.owner.id) %}
+            {% set _ = unique_owners.append(p.owner) %}
+        {% endif %}
+        {% if p.owners %}
+            {% for o in p.owners %}
+                {% if o.id not in owner_ids %}
+                    {% set _ = owner_ids.append(o.id) %}
+                    {% set _ = unique_owners.append(o) %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+    
+    {% for owner in unique_owners %}
+        {% set owner_projects = [] %}
+        {% for p in projects %}
+            {% if p.owner == owner or (p.owners and owner in p.owners) %}
+                {% set _ = owner_projects.append(p) %}
+            {% endif %}
+        {% endfor %}
+
+        {% if owner_projects %}
+            <h4 style="color:#04038d; margin-bottom: 2px; margin-top: 15px;">{{ t('filter_owner') }}: {{ (owner.display_name or owner.username) if owner else t('unknown') }}</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-name">{{ t('col_project_name') }}</th>
+              <th class="col-code">{{ t('col_code') }}</th>
+              <th class="col-deadline">{{ t('col_deadline') }}</th>
+              <th class="col-progress">{{ t('col_progress') }}</th>
+              <th class="col-update">{{ t('col_last_update') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for project in owner_projects %}
+                {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+                <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+                  <td class="col-name">
+                <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    {% if project.owners %}
+                        {% for o in project.owners %}
+                            <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-right: 3px; margin-bottom: 2px;">{{ o.display_name or o.username }}</span>
+                        {% endfor %}
+                    {% elif project.owner %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.owner.display_name or project.owner.username }}</span>
+                    {% else %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-style: italic; color: #777;">{{ t('report_unassigned') }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.status }}</span>
+                </div>
+              </td>
+              <td class="col-code">{{ project|format_code }}</td>
+              <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+              <td class="col-progress">{{ project.progress }}%</td>
+              <td class="col-update">
+                {% if project.display_latest_update_date %}
+                <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+                {% else %}
+                <div style="margin-bottom: 2px;">—</div>
+                {% endif %}
+                <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+              </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+        {% endif %}
+    {% endfor %}
+
+    {# --- Unassigned Projects --- #}
+    {% set unassigned_projects = [] %}
+    {% for p in projects %}
+        {% if not p.owner and not p.owners %}
+            {% set _ = unassigned_projects.append(p) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if unassigned_projects %}
+        <h4 style="color:#04038d; margin-bottom: 2px; margin-top: 15px;">{{ t('filter_owner') }}: {{ t('report_unassigned') }}</h4>
+        <table>
+          <thead>
+            <tr>
+              <th class="col-name">{{ t('col_project_name') }}</th>
+              <th class="col-code">{{ t('col_code') }}</th>
+              <th class="col-deadline">{{ t('col_deadline') }}</th>
+              <th class="col-progress">{{ t('col_progress') }}</th>
+              <th class="col-update">{{ t('col_last_update') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for project in unassigned_projects %}
+            {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+            <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+              <td class="col-name">
+                <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                     <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-style: italic; color: #777;">{{ t('report_unassigned') }}</span>
+                </div>
+                {% endif %}
+              </td>
+              <td class="col-code">{{ project|format_code }}</td>
+              <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+              <td class="col-progress">{{ project.progress }}%</td>
+              <td class="col-update">
+                {% if project.display_latest_update_date %}
+                <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+                {% else %}
+                <div style="margin-bottom: 2px;">—</div>
+                {% endif %}
+                <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+    {% endif %}
+
+  {% else %}
+    {# --- GROUP BY CLIENT (Default) --- #}
+    {% set clients = projects|map(attribute='client')|select('defined')|unique %}
+    {% for client in clients %}
+      {% if client %}
+        <h4 style="color:#04038d; margin-bottom: 2px; margin-top: 15px;">{{ t('report_client') }}: {{ client.name }}</h4>
+        <table>
+          <thead>
+            <tr>
+              <th class="col-name">{{ t('col_project_name') }}</th>
+              <th class="col-code">{{ t('col_code') }}</th>
+              <th class="col-deadline">{{ t('col_deadline') }}</th>
+              <th class="col-progress">{{ t('col_progress') }}</th>
+              <th class="col-update">{{ t('col_last_update') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for project in projects if project.client == client %}
+              {% set is_overdue = project.deadline and project.deadline < current_date_obj and project.status not in ['Completed', 'Close'] %}
+              <tr style="{{ 'color: #dc3545;' if is_overdue else '' }}">
+                <td class="col-name">
+                <div style="font-weight: bold;">{{ project.name|project_title }}</div>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    {% if project.owners %}
+                        {% for owner in project.owners %}
+                            <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-right: 3px; margin-bottom: 2px;">{{ owner.display_name or owner.username }}</span>
+                        {% endfor %}
+                    {% elif project.owner %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.owner.display_name or project.owner.username }}</span>
+                    {% else %}
+                        <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-style: italic; color: #777;">{{ t('report_unassigned') }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">
+                    <span style="display: inline-block; background: #f0f0f0; padding: 1px 5px; border-radius: 3px;">{{ project.status }}</span>
+                </div>
+              </td>
+              <td class="col-code">{{ project|format_code }}</td>
+              <td class="col-deadline">{{ project.deadline.strftime('%b %d, %y') if project.deadline else '—' }}</td>
+              <td class="col-progress">{{ project.progress }}%</td>
+              <td class="col-update">
+                {% if project.display_latest_update_date %}
+                <div style="font-weight: bold; margin-bottom: 2px;">{{ project.display_latest_update_date.strftime('%b %d, %y') }}</div>
+                {% else %}
+                <div style="margin-bottom: 2px;">—</div>
+                {% endif %}
+                <div style="font-size: 12px; color: #555; font-style: italic;">{{ project.last_update_detail }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  <div class="footer">
+    {{ t('report_generated_by') }}: {{ current_user.display_name }}
+  </div>
+  </div>
+</body>
+</html>

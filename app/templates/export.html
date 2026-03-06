@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Xuất báo cáo{% endblock %}
+{% block content %}
+<div class="container mt-4 fade-in" style="max-width: 700px;">
+  <h1 class="page-title"><i class="fas fa-file-export text-primary me-2"></i>Xuất báo cáo dự án</h1>
+
+  <form method="POST" action="{{ url_for('export_report') }}">
+    <div class="mb-3">
+      <label class="form-label">Định dạng báo cáo</label>
+      <select name="format" class="form-select" required>
+        <option value="html_dashboard">Báo cáo Tổng quan (HTML/Print)</option>
+        <option value="excel">Excel (.xlsx)</option>
+        <option value="pdf">PDF (.pdf)</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Phạm vi dữ liệu</label>
+      <select name="scope" class="form-select" required>
+        <option value="all">Tất cả dự án</option>
+        <option value="active">Chỉ dự án đang hoạt động</option>
+        <option value="completed">Chỉ dự án đã hoàn thành</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Khoảng thời gian</label>
+      <div class="row">
+        <div class="col">
+          <input type="date" name="start_date" class="form-control">
+        </div>
+        <div class="col">
+          <input type="date" name="end_date" class="form-control">
+        </div>
+      </div>
+      <small class="text-muted">Nếu bỏ trống, hệ thống sẽ xuất toàn bộ dữ liệu.</small>
+    </div>
+
+    <div class="text-end">
+      <button type="submit" class="btn btn-primary">📤 Xuất báo cáo</button>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Hủy</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

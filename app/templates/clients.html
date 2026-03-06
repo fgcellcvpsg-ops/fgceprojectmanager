@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_clients') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in mt-3 clients-page" style="max-width: 1400px;">
+  <!-- Header & Actions -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+    <div class="d-flex align-items-center">
+      <div>
+        <h1 class="page-title">
+          <i class="bi bi-buildings text-primary me-2"></i>{{ t('title_clients') }}
+        </h1>
+        <div class="text-muted small mt-1 ms-1">
+          {{ t('report_total_clients') }}: <span class="fw-bold text-body">{{ clients|length }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <!-- Search Box -->
+      <div class="input-group clients-search" style="max-width: 320px;">
+        <span class="input-group-text clients-search-addon"><i class="bi bi-search"></i></span>
+        <input type="text" id="clientSearch" class="form-control clients-search-input" 
+               placeholder="{{ t('placeholder_search_clients') }}">
+      </div>
+      
+      <a href="{{ url_for('clients.add_client') }}" class="btn btn-primary px-3 shadow-sm text-nowrap">
+        <i class="bi bi-plus-lg me-1"></i>{{ t('btn_add_client') }}
+      </a>
+      
+      <div class="btn-group">
+        <a href="{{ url_for('export.export_combined') }}" class="btn btn-outline-success shadow-sm">
+          <i class="bi bi-file-earmark-excel me-1"></i>Export
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clients List (Table Card Style) -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" id="clientsTable">
+        <thead>
+          <tr>
+            <th class="ps-4" style="width: 5%;">#</th>
+            <th style="width: 30%;">{{ t('col_client_name') }}</th>
+            <th style="width: 12%;">{{ t('col_symbol') }}</th>
+            <th class="text-center" style="width: 15%;">{{ t('col_projects_count') }}</th>
+            <th style="width: 25%;">{{ t('label_note') }}</th>
+            <th class="pe-4 text-end" style="width: 10%;">{{ t('col_actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in clients %}
+            <tr class="client-row" style="--client-accent: {{ c.color if (c.color and c.color != '#000000') else 'var(--app-primary)' }};">
+              <td class="ps-4 text-muted">{{ loop.index }}</td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <!-- Avatar Placeholder -->
+                  <div class="client-avatar me-3 rounded-circle fw-bold d-flex align-items-center justify-content-center">
+                    {{ c.name[:2].upper() }}
+                  </div>
+                  <div>
+                    <span class="fw-bold client-name">{{ c.name }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge client-symbol">{{ c.symbol }}</span>
+              </td>
+              <td class="text-center">
+                {% set proj_count = c.projects|length %}
+                {% if proj_count > 0 %}
+                  <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 client-project-count">{{ proj_count }}</span>
+                {% else %}
+                  <span class="text-muted small">-</span>
+                {% endif %}
+              </td>
+              <td class="text-muted small text-truncate" style="max-width: 200px;" title="{{ c.note or '' }}">
+                {{ c.note or '' }}
+              </td>
+              <td class="pe-4 text-end">
+                <div class="dropdown">
+                  <button class="action-btn" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-ellipsis-v action-icon"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                    <li>
+                      <a class="dropdown-item" href="{{ url_for('projects.add_project', client_id=c.id) }}">
+                        <i class="bi bi-plus-circle-fill me-2 text-success"></i>{{ t('btn_add_project') }}
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="{{ url_for('clients.edit_client', client_id=c.id) }}">
+                        <i class="bi bi-pencil-square me-2 text-primary"></i>{{ t('tooltip_edit') }}
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button type="button" 
+                              class="dropdown-item text-danger btn-open-delete-modal"
+                              data-bs-toggle="modal"
+                              data-bs-target="#confirmDeleteModal"
+                              data-client-id="{{ c.id }}"
+                              data-client-name="{{ c.name|e }}">
+                        <i class="bi bi-trash me-2"></i>{{ t('tooltip_delete') }}
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-5">
+                <div class="text-muted">
+                  <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                  {{ t('empty_clients') }}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title fs-6 fw-bold">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ t('modal_delete_client_title') }}
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="deleteClientForm" method="POST" action="">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body p-4 text-center">
+            <div class="mb-3">
+              <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+            </div>
+            <p class="mb-1 fw-bold fs-5" id="deleteClientNameDisplay"></p>
+            <p class="text-muted small mb-0">{{ t('modal_delete_client_body').replace('{name}', '') }}</p>
+          </div>
+          <div class="modal-footer bg-light border-0 justify-content-center">
+            <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">{{ t('btn_cancel_text') }}</button>
+            <button type="submit" class="btn btn-danger px-4 fw-bold">{{ t('btn_delete') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+  // Search Functionality
+  const searchInput = document.getElementById('clientSearch');
+  const table = document.getElementById('clientsTable');
+  
+  if (searchInput && table) {
+    searchInput.addEventListener('keyup', function() {
+      const filter = this.value.toLowerCase();
+      const rows = table.querySelectorAll('tbody tr.client-row');
+      
+      rows.forEach(row => {
+        const name = row.querySelector('.client-name').textContent.toLowerCase();
+        const symbol = row.querySelector('.client-symbol').textContent.toLowerCase();
+        
+        if (name.includes(filter) || symbol.includes(filter)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  // Delete Modal Handler
+  var confirmModal = document.getElementById('confirmDeleteModal');
+  if (confirmModal) {
+    confirmModal.addEventListener('show.bs.modal', function (event) {
+      var button = event.relatedTarget;
+      var clientId = button.getAttribute('data-client-id');
+      var clientName = button.getAttribute('data-client-name') || 'Client';
+      
+      // Update form action
+      var form = confirmModal.querySelector('#deleteClientForm');
+      form.action = "{{ url_for('clients.delete_client', client_id=0) }}".replace('0', clientId);
+      
+      // Update display name
+      var nameDisplay = confirmModal.querySelector('#deleteClientNameDisplay');
+      nameDisplay.textContent = clientName;
+    });
+  }
+  
+  // Initialize Tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+  })
+});
+</script>
+{% endblock %}

@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('title_work_history_report') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-book-open me-2 text-primary"></i>{{ t('page_work_history_title') }}
+            </h1>
+            <p class="text-muted small mb-0 mt-1">
+                {{ t('report_generated_by') }}: <span class="fw-bold">{{ current_user.display_name or current_user.username }}</span>
+            </p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addEntryModal">
+                <i class="fas fa-plus me-2"></i>{{ t('work_history_add_title') }}
+            </button>
+            <div class="btn-group shadow-sm">
+                 <a href="{{ url_for('admin.work_history_report_export_csv', **filters) }}" class="btn btn-outline-success">
+                    <i class="fas fa-file-csv me-2"></i>CSV
+                </a>
+                <button onclick="window.print()" class="btn btn-outline-secondary">
+                    <i class="fas fa-print me-2"></i>Print
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card shadow-sm border-0 mb-4 d-print-none">
+        <div class="card-header bg-white py-3" data-bs-toggle="collapse" data-bs-target="#filterCollapse" style="cursor: pointer;">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold text-primary"><i class="fas fa-filter me-2"></i>{{ t('label_filter_options') }}</h6>
+                <i class="fas fa-chevron-down text-muted"></i>
+            </div>
+        </div>
+        <div class="collapse show" id="filterCollapse">
+            <div class="card-body bg-light bg-opacity-50">
+                <form method="get" class="d-flex flex-nowrap align-items-end gap-2 overflow-auto filters-row">
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_time_filter') }}</label>
+                        <select class="form-select form-select-sm w-auto filter-narrow" name="quick" onchange="this.form.submit()">
+                            <option value="">{{ t('quick_filter_placeholder') }}</option>
+                            <option value="today" {% if filters.get('quick') == 'today' %}selected{% endif %}>{{ t('filter_today') }}</option>
+                            <option value="this_week" {% if filters.get('quick') == 'this_week' %}selected{% endif %}>{{ t('filter_this_week') }}</option>
+                            <option value="this_month" {% if filters.get('quick') == 'this_month' %}selected{% endif %}>{{ t('filter_this_month') }}</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_from_date') }}</label>
+                        <input type="date" class="form-control form-control-sm w-auto filter-narrow" name="start_date" value="{{ filters.get('start_date','') }}">
+                    </div>
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_to_date') }}</label>
+                        <input type="date" class="form-control form-control-sm w-auto filter-narrow" name="end_date" value="{{ filters.get('end_date','') }}">
+                    </div>
+                    <div class="filter-item filter-wide">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_project') }}</label>
+                        <select class="form-select form-select-sm" name="project_id">
+                            <option value="">{{ t('label_all_projects') }}</option>
+                            {% for p in projects %}
+                            <option value="{{ p.id }}" {% if filters.get('project_id') == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_email_from') }}</label>
+                        <input type="text" class="form-control form-control-sm" name="email_from" value="{{ filters.get('email_from','') }}" placeholder="{{ t('placeholder_email_from') }}">
+                    </div>
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_email_to') }}</label>
+                        <input type="text" class="form-control form-control-sm" name="email_to" value="{{ filters.get('email_to','') }}" placeholder="{{ t('placeholder_email_to') }}">
+                    </div>
+                    <div class="filter-item">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_project_name') }}</label>
+                        <input type="text" class="form-control form-control-sm" name="project_name" value="{{ filters.get('project_name','') }}" placeholder="{{ t('placeholder_project_name') }}">
+                    </div>
+                    <div class="filter-item filter-search">
+                        <label class="form-label fw-bold small text-secondary">{{ t('label_search_text') }}</label>
+                        <input type="text" class="form-control form-control-sm" name="search_text" value="{{ filters.get('search_text','') }}" placeholder="{{ t('placeholder_search_journal') }}">
+                    </div>
+                    <div class="d-flex gap-2 align-items-end">
+                        <button class="btn btn-primary btn-sm text-nowrap px-3" type="submit">
+                            <i class="fas fa-search me-1"></i>{{ t('btn_search') }}
+                        </button>
+                        <a href="{{ url_for('admin.work_history_report') }}" class="btn btn-outline-secondary btn-sm text-nowrap px-3">
+                            <i class="fas fa-undo me-1"></i>{{ t('btn_reset_filters') }}
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grouped Data View -->
+    {% set incoming_emails = [] %}
+    {% set outgoing_emails = [] %}
+    {% set other_work = [] %}
+    {% for entry in entries %}
+        {% if entry.work_type == 'Email đến' %}
+            {% set _ = incoming_emails.append(entry) %}
+        {% elif entry.work_type == 'Email đi' %}
+            {% set _ = outgoing_emails.append(entry) %}
+        {% else %}
+            {% set _ = other_work.append(entry) %}
+        {% endif %}
+    {% endfor %}
+
+    <!-- 1. Email Gửi Đến (Incoming) -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3 border-bottom border-primary border-3">
+            <h5 class="m-0 fw-bold text-primary"><i class="fas fa-inbox me-2"></i>Email Gửi Đến Trong Ngày</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if incoming_emails %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0">
+                    <thead class="bg-light text-secondary text-uppercase small">
+                        <tr>
+                            <th class="ps-3 py-3" style="width: 50px;">#</th>
+                            <th class="py-3" style="width: 150px;">{{ t('label_work_date') }}</th>
+                            <th class="py-3">{{ t('label_email_from') }}</th>
+                            <th class="py-3">{{ t('label_project') }}</th>
+                            <th class="py-3">Thời gian</th>
+                            <th class="py-3">Nội dung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in incoming_emails %}
+                        <tr>
+                            <td class="ps-3 fw-bold">{{ loop.index }}</td>
+                            <td class="text-nowrap">{{ entry.work_date.strftime('%Y-%m-%d') if entry.work_date else '' }}</td>
+                            <td>{{ entry.email_from }}</td>
+                            <td>
+                                <div class="fw-bold text-primary">{{ entry.project.name }}</div>
+                                <small class="text-muted">{{ entry.project|format_code }}</small>
+                            </td>
+                            <td>{{ entry.work_time or '--:--' }}</td>
+                            <td>
+                                <div style="max-height: 80px; overflow-y: auto; white-space: pre-wrap;">{{ entry.change_details }}</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <p class="mb-0">Không có email đến nào.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 2. Email Gửi Đi (Outgoing) -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3 border-bottom border-success border-3">
+            <h5 class="m-0 fw-bold text-success"><i class="fas fa-paper-plane me-2"></i>Email Gửi Đi Trong Ngày</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if outgoing_emails %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0">
+                    <thead class="bg-light text-secondary text-uppercase small">
+                        <tr>
+                            <th class="ps-3 py-3" style="width: 50px;">#</th>
+                            <th class="py-3" style="width: 150px;">{{ t('label_work_date') }}</th>
+                            <th class="py-3">{{ t('label_email_to') }}</th>
+                            <th class="py-3">{{ t('label_project') }}</th>
+                            <th class="py-3">Mô tả nội dung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in outgoing_emails %}
+                        <tr>
+                            <td class="ps-3 fw-bold">{{ loop.index }}</td>
+                            <td class="text-nowrap">{{ entry.work_date.strftime('%Y-%m-%d') if entry.work_date else '' }}</td>
+                            <td>{{ entry.email_to }}</td>
+                            <td>
+                                <div class="fw-bold text-primary">{{ entry.project.name }}</div>
+                                <small class="text-muted">{{ entry.project|format_code }}</small>
+                            </td>
+                            <td>
+                                <div style="max-height: 80px; overflow-y: auto; white-space: pre-wrap;">{{ entry.change_details }}</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <p class="mb-0">Không có email đi nào.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- 3. Các loại công việc khác (nếu có) -->
+    {% if other_work %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3 border-bottom border-warning border-3">
+             <h5 class="m-0 fw-bold text-warning"><i class="fas fa-briefcase me-2"></i>Các công việc khác</h5>
+        </div>
+        <div class="card-body p-0">
+             <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0">
+                    <thead class="bg-light text-secondary text-uppercase small">
+                        <tr>
+                            <th class="ps-3 py-3" style="width: 50px;">#</th>
+                            <th class="py-3">{{ t('col_work_date') }}</th>
+                            <th class="py-3">{{ t('col_work_type') }}</th>
+                            <th class="py-3">{{ t('col_project') }}</th>
+                            <th class="py-3">{{ t('col_change_details') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                         {% for entry in other_work %}
+                        <tr>
+                            <td class="ps-3 fw-bold">{{ loop.index }}</td>
+                            <td class="text-nowrap">{{ entry.work_date.strftime('%Y-%m-%d') if entry.work_date else '' }}</td>
+                             <td><span class="badge bg-secondary">{{ entry.work_type }}</span></td>
+                            <td>
+                                <div class="fw-bold text-primary">{{ entry.project.name }}</div>
+                            </td>
+                            <td>
+                                <div style="max-height: 80px; overflow-y: auto; white-space: pre-wrap;">{{ entry.change_details }}</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+             </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Add Entry Modal -->
+<div class="modal fade" id="addEntryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-pen-fancy me-2"></i>{{ t('work_history_add_title') }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <ul class="nav nav-pills nav-fill mb-4" id="entryTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold" id="incoming-tab" data-bs-toggle="tab" data-bs-target="#incoming-form" type="button" role="tab" onclick="setWorkType('Email đến')">
+                            <i class="fas fa-inbox me-2"></i>Email Gửi Đến
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold" id="outgoing-tab" data-bs-toggle="tab" data-bs-target="#outgoing-form" type="button" role="tab" onclick="setWorkType('Email đi')">
+                            <i class="fas fa-paper-plane me-2"></i>Email Gửi Đi
+                        </button>
+                    </li>
+                </ul>
+
+                <form method="post" action="{{ url_for('admin.work_history_report') }}" id="addEntryForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="work_type" id="workTypeInput" value="Email đến">
+                    
+                    <div class="row g-3">
+                         <!-- Common: Work Date -->
+                        <div class="col-12">
+                            <label class="form-label fw-bold">{{ t('label_work_date') }} <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="work_date" required value="{{ now.strftime('%Y-%m-%d') }}">
+                        </div>
+
+                        <!-- Tab Content for specific fields -->
+                        <div class="tab-content" id="entryTabContent">
+                            <!-- Incoming Form -->
+                            <div class="tab-pane fade show active" id="incoming-form" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Người gửi đến <span class="text-danger">*</span></label>
+                                        <input type="text" name="email_from" class="form-control" placeholder="Ví dụ: khachhang@domain.com">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Thời gian đến</label>
+                                        <input type="time" name="work_time" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Outgoing Form -->
+                            <div class="tab-pane fade" id="outgoing-form" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-bold">Gửi cho ai <span class="text-danger">*</span></label>
+                                        <input type="text" name="email_to" class="form-control" placeholder="Ví dụ: dongnghiep@domain.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Common: Project & Content -->
+                        <div class="col-12">
+                            <label class="form-label fw-bold">{{ t('label_project') }} <span class="text-danger">*</span></label>
+                            <select name="project_id" class="form-select" required>
+                                <option value="">{{ t('select_project_placeholder') }}</option>
+                                {% for p in projects %}
+                                <option value="{{ p.id }}">{{ p.name }} ({{ p.po_number }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label fw-bold" id="contentLabel">Nội dung email <span class="text-danger">*</span></label>
+                            <textarea name="change_details" class="form-control" rows="4" placeholder="Mô tả nội dung..." required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">{{ t('btn_cancel') }}</button>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-save me-2"></i>{{ t('btn_add_work_history') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function setWorkType(type) {
+        document.getElementById('workTypeInput').value = type;
+        const label = document.getElementById('contentLabel');
+        const form = document.getElementById('addEntryForm');
+        if (!form) return;
+        const emailFromInput = form.querySelector('input[name="email_from"]');
+        const emailToInput = form.querySelector('input[name="email_to"]');
+        const timeInput = form.querySelector('input[name="work_time"]');
+        
+        if (type === 'Email đến') {
+            label.textContent = 'Nội dung email là gì?';
+            
+            emailFromInput.disabled = false;
+            emailFromInput.removeAttribute('required');
+            
+            emailToInput.disabled = true;
+            emailToInput.removeAttribute('required');
+            emailToInput.value = '';
+            
+            if (timeInput) timeInput.disabled = false;
+        } else {
+            label.textContent = 'Mô tả nội dung email';
+            
+            emailToInput.disabled = false;
+            emailToInput.setAttribute('required', 'required');
+            
+            emailFromInput.disabled = true;
+            emailFromInput.removeAttribute('required');
+            emailFromInput.value = '';
+            
+            if (timeInput) timeInput.disabled = true;
+        }
+    }
+    
+    // Initialize state
+    document.addEventListener('DOMContentLoaded', function() {
+        setWorkType('Email đến');
+    });
+</script>
+
+<style>
+  .table-hover tbody tr:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.03);
+  }
+  .filter-narrow {
+    max-width: 160px;
+  }
+  .filters-row { overflow-x: auto; }
+  .filter-item { min-width: 140px; }
+  .filter-wide { min-width: 220px; }
+  .filter-search { min-width: 300px; }
+  .modal-content {
+    border-radius: 0.5rem;
+  }
+  .nav-pills .nav-link {
+    border-radius: 0.5rem;
+        color: #6c757d;
+        background-color: #f8f9fa;
+        margin: 0 5px;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #4e73df;
+        color: #fff;
+    }
+</style>
+{% endblock %}

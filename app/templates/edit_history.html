@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_edit_history') }}{% endblock %}
+{% block content %}
+<div class="container mt-4 fade-in" style="max-width:540px;">
+  <div class="card shadow-sm">
+    <div class="card-header d-flex align-items-center">
+      <i class="fas fa-history text-primary me-2"></i>
+      <span class="fw-bold">{{ t('title_edit_history') }}</span>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('projects.edit_history', history_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Trạng thái mới -->
+        <div class="mb-3">
+          <label class="form-label">{{ t('label_new_status') }}</label>
+          <input type="text" name="new_status" class="form-control" value="{{ record.new_status }}" required>
+        </div>
+
+        <!-- Tiến độ mới -->
+        <div class="mb-3">
+          <label class="form-label">{{ t('label_new_progress') }}</label>
+          <input type="number" name="new_progress" class="form-control" min="0" max="100" value="{{ record.new_progress }}" required>
+        </div>
+
+        <!-- Chi tiết -->
+        <div class="mb-3">
+          <label class="form-label">{{ t('label_detail') }}</label>
+          <textarea name="detail" class="form-control" rows="4">{{ record.detail }}</textarea>
+        </div>
+
+        <!-- Nút thao tác -->
+        <div class="text-end">
+          <button type="submit" class="btn btn-primary">{{ t('btn_save') }}</button>
+          <a href="{{ url_for('projects.project_detail', project_id=record.project_id) }}" class="btn btn-secondary">{{ t('btn_cancel') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

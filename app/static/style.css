@@ -1,0 +1,180 @@
+/* Hiệu ứng fade-in cho nội dung */
+.fade-in {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Navbar tùy chỉnh */
+.navbar-brand {
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+  color: #f8f9fa;
+  transition: color 0.2s;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+  color: #ffc107;
+}
+
+/* Bảng dữ liệu */
+.table th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Nút hành động */
+.btn-primary {
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #004085;
+}
+
+/* Flash messages fallback */
+.alert {
+  margin-top: 10px;
+}
+
+/* Task Actions Menu */
+.task-actions-menu {
+    min-width: 240px;
+    border-left: 3px solid #04038d;
+    background-color: #f8fafc;
+    z-index: 3000;
+}
+
+.task-actions-menu .dropdown-item.text-warning {
+    color: #0d6efd !important;
+}
+
+.task-actions-menu .dropdown-item.text-warning i {
+    color: #0d6efd !important;
+}
+
+/* Custom Status Progress Bar Colors */
+.bg-status-close {
+    background-color: #795548 !important; /* Brown */
+}
+
+.bg-status-completed {
+    background-color: #198754 !important; /* Success Green */
+}
+
+.bg-status-on-hold {
+    background-color: #f59e0b !important; /* Warning Orange */
+}
+
+.bg-status-in-progress {
+    background-color: #04038d !important; /* Primary Blue */
+}
+
+.bg-status-default {
+    background-color: #64748b !important; /* Default Gray */
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.25em 0.6em;
+    font-size: 75%;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.status-badge.status-close {
+    background-color: #795548;
+    color: #fff;
+}
+
+.status-badge.status-completed {
+    background-color: #198754;
+    color: #fff;
+}
+
+.status-badge.status-on-hold {
+    background-color: #f59e0b;
+    color: #000;
+}
+
+.status-badge.status-in-progress {
+    background-color: #04038d;
+    color: #fff;
+}
+
+.status-badge.status-new {
+    background-color: #0dcaf0;
+    color: #000;
+}
+
+/* Page Title Global Style */
+.page-title {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: var(--bs-body-color) !important;
+    letter-spacing: -0.5px !important;
+    margin-bottom: 0.25rem;
+}
+
+@media print {
+    .no-print, .d-print-none, .navbar, .btn, .filter-section, .modal, .toast-container, .dashboard-header .d-flex.align-items-center.gap-2 {
+        display: none !important;
+    }
+    
+    .dashboard-container, .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    body {
+        background-color: white !important;
+        font-size: 12pt;
+    }
+
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Preserve colors */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    a[href]:after {
+        content: none !important;
+    }
+    
+    /* Ensure tables print well */
+    .table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    
+    /* Hide scrollbars */
+    ::-webkit-scrollbar {
+        display: none;
+    }
+}

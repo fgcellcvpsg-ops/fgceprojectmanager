@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ t('page_project_detail_title') }} - Quotation{% endblock %}
+{% block content %}
+<div class="container mt-4 fade-in">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="page-title">
+      <i class="fas fa-file-invoice-dollar me-2 text-success"></i>{{ project.name|project_title }}
+    </h1>
+    <div>
+      <a href="{{ url_for('projects.list', status='Quotation') }}" class="btn btn-secondary">↩️ {{ t('btn_back') }}</a>
+      {% if current_user.role in ['admin','manager','leader', 'quotation', 'secretary'] %}
+        <a href="{{ url_for('projects.edit_project', project_id=project.id) }}" class="btn btn-warning btn-icon-fixed" title="{{ t('btn_edit') }}">✏️</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Details -->
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-bold">📑 {{ t('card_project_details') }}</div>
+        <div class="card-body">
+          <p><strong>{{ t('label_client') }}:</strong> {{ project.client.name if project.client else '—' }}</p>
+          <p><strong>{{ t('label_code') }}:</strong> {{ project|format_code }}</p>
+          <p><strong>{{ t('label_address') }}:</strong> {{ project.address or '—' }}</p>
+          <p><strong>{{ t('label_deadline') }}:</strong>
+            <span style="color:var(--app-danger); font-weight:700;"> {{ project.deadline.strftime('%b %d, %Y') if project.deadline else '—' }}</span>
+          <p>
+          <p><strong>{{ t('label_scope') }}:</strong><br>{{ project.scope or '—' }}</p>
+          <p class="mt-3 border-top pt-2"><strong>{{ t('label_source') }}:</strong>
+            {% if project.source %}
+              {{ project.source }}
+              <form action="{{ url_for('main.open_folder') }}" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="path" value="{{ project.source }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary ms-2 py-0 fw-bold" title="Open Folder">GO</button>
+              </form>
+            {% else %}—{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="col-md-6">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-bold">
+          <i class="fas fa-chart-line text-primary me-2"></i>{{ t('label_status_progress') or 'Trạng thái & Tiến độ' }}
+        </div>
+        <div class="card-body">
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold">{{ t('label_current_status') }}</span>
+              <span class="badge rounded-pill bg-light text-dark border" style="font-size: 1rem;">
+                {% if project.status == 'Quotation' or project.status == 'Quotation - Not Started' %}
+                    {{ t('quotation_not_started') }}
+                {% elif project.status == 'Quotation - In Progress' or project.status.startswith('Quoting') %}
+                    {{ t('quotation_doing') }}
+                {% elif project.status == 'Quotation - Submitted' %}
+                    {{ t('quotation_submitted') }}
+                {% elif project.status == 'Quotation - Won' %}
+                    {{ t('quotation_won') }}
+                {% else %}
+                    {{ project.status }}
+                {% endif %}
+              </span>
+            </div>
+          </div>
+
+          {% if current_user.role in ['admin','manager','leader','member', 'quotation', 'secretary'] %}
+          <div class="d-grid">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
+              <i class="fas fa-edit me-2"></i>{{ t('btn_update_status_progress') }}
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Update Status -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ t('btn_update_status_progress') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('projects.update_progress', project_id=project.id) }}">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ t('label_update_status_action') }}</label>
+            <select name="status" class="form-select">
+              <option value="Quotation - Not Started" {% if project.status == 'Quotation - Not Started' or project.status == 'Quotation' %}selected{% endif %}>{{ t('quotation_not_started') }}</option>
+              <option value="Quotation - In Progress" {% if project.status == 'Quotation - In Progress' %}selected{% endif %}>{{ t('quotation_doing') }}</option>
+              <option value="Quotation - Quote Sent" {% if project.status == 'Quotation - Quote Sent' %}selected{% endif %}>{{ t('quotation_quote_sent') }}</option>
+              <option value="Quotation - Submitted" {% if project.status == 'Quotation - Submitted' %}selected{% endif %}>{{ t('quotation_submitted') }}</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ t('label_update_content') }}</label>
+            <textarea name="note" class="form-control" rows="2" placeholder="Ghi chú..."></textarea>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_close') }}</button>
+          <button type="submit" class="btn btn-primary">{{ t('btn_save_update') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

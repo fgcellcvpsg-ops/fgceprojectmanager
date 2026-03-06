@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_backup') }}{% endblock %}
+{% block content %}
+<div class="container-xxl mt-4 fade-in" style="max-width: 900px;">
+  <h1 class="page-title">
+    <i class="fas fa-database me-2 text-primary"></i>{{ t('heading_backup') }}
+  </h1>
+
+  <!-- Nút tạo backup -->
+  <div class="mb-3 text-end">
+    <form method="POST" action="{{ url_for('backup.backup_db') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-success">➕ {{ t('btn_create_backup') }}</button>
+    </form>
+  </div>
+
+  <!-- Danh sách backup -->
+  <div class="table-responsive backups-table-wrapper" style="border:1px solid var(--bs-border-color); border-radius:6px; padding:8px; max-height:65vh; overflow:auto;">
+    <table class="table table-bordered table-hover align-middle backups-table">
+      <thead class="table-light">
+        <tr>
+          <th>{{ t('col_index') }}</th>
+          <th>{{ t('col_filename') }}</th>
+          <th>{{ t('col_created') }}</th>
+          <th>{{ t('col_size') }}</th>
+          <th>{{ t('col_actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ b.filename }}</td>
+          <td>{{ b.created_at|format_date }}</td>
+          <td>{{ b.size }} KB</td>
+          <td>
+            <div class="action-btns">
+              <a href="{{ url_for('backup.download_backup', filename=b.filename) }}" class="btn btn-sm btn-primary">⬇️ {{ t('btn_download') }}</a>
+              <form method="POST" action="{{ url_for('backup.restore_backup', filename=b.filename) }}" style="display:inline;" data-confirm="{{ t('btn_restore') }}?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-warning">♻️ {{ t('btn_restore') }}</button>
+              </form>
+              <form method="POST" action="{{ url_for('backup.delete_backup', filename=b.filename) }}" style="display:inline;" data-confirm="{{ t('btn_delete') }}?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger">🗑️ {{ t('btn_delete') }}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted">⚠ {{ t('empty_backups') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function(){
+  var thead = document.querySelector('.backups-table thead');
+  if (thead) { thead.querySelectorAll('th').forEach(function(th){ th.style.position='sticky'; th.style.top='0'; th.style.background='#f8f9fa'; th.style.zIndex='2'; }); }
+});
+</script>
+{% endblock %}

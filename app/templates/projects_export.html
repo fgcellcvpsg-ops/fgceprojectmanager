@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ t('title_project_list') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; }
+        @page { size: A4 landscape; margin: 15mm; }
+        h2 { color: #04038d; text-align: center; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: top; }
+        th { background-color: #f0f4ff; color: #04038d; white-space: nowrap; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: right; font-size: 10px; color: #666; }
+    </style>
+</head>
+<body>
+    <h2>{{ t('title_project_list') }}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ t('col_project_name') }}</th>
+                <th>{{ t('col_code') }}</th>
+                <th>{{ t('col_client') }}</th>
+                <th>{{ t('col_deadline') }}</th>
+                <th>{{ t('col_progress') }}</th>
+                <th>{{ t('col_last_update') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in projects %}
+            <tr>
+                <td>{{ p.name|project_title }}</td>
+                <td>{{ p|format_code }}</td>
+                <td>{{ p.client.symbol if p.client else '—' }}</td>
+                <td>{{ p.deadline|format_date }}</td>
+                <td>{{ p.progress }}%</td>
+                <td>{{ p.latest_update_date|format_date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="footer">
+        {{ t('report_generated_by') }}: {{ current_user.display_name }} - {{ current_date }}
+    </div>
+</body>
+</html>

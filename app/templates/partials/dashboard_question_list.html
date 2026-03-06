@@ -1,0 +1,98 @@
+<div class="list-group list-group-flush flex-grow-1 pb-3" style="overflow-y: auto;" id="question-list-dashboard_card">
+    {% if questions %}
+        {% for q in questions %}
+         {% set creator_level = q.created_by.role_level if q.created_by else 0 %}
+         {% set can_answer = (current_user.id != q.created_by_id) and (current_user.role_level > creator_level) %}
+         {% set creator_name = (q.created_by.display_name or q.created_by.username) if q.created_by else '?' %}
+         {% set creator_initial = creator_name[0] | upper if creator_name else '?' %}
+         {% set is_answered = q.answer is not none %}
+         {% set can_answer = current_user.role in ['admin', 'manager'] or ((current_user.id != q.created_by_id) and (current_user.role_level > creator_level)) %}
+                 <div class="content-list-item dashboard-question-item p-1 rounded-2 mb-1 {% if not is_answered %}border-start border-3 border-danger bg-white shadow-sm{% else %}bg-light border-start border-3 border-success bg-opacity-50{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="d-flex align-items-start gap-2 overflow-hidden flex-grow-1">
+                            <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.7rem; flex-shrink: 0; margin-top: 2px;">
+                                {{ creator_initial }}
+                            </div>
+                            <div class="overflow-hidden flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden" style="line-height: 1.2;">
+                                    {% if q.project %}
+                                    <a href="{{ url_for('projects.project_detail', project_id=q.project_id) }}#question" class="item-title text-truncate text-decoration-none fw-bold" style="font-size: 0.75rem;">
+                                        <i class="fas fa-layer-group text-primary me-1" style="font-size: 0.7rem;"></i>{{ q.project.name|project_title }}
+                                    </a>
+                                    {% else %}
+                                    <span class="item-title text-truncate text-muted fw-bold" style="font-size: 0.75rem;">
+                                        <i class="fas fa-exclamation-triangle text-warning me-1" style="font-size: 0.7rem;"></i>{{ t('unknown')|default('Unknown Project') }}
+                                    </span>
+                                    {% endif %}
+                                    {% if is_answered %}
+                                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-1" style="font-size: 0.65rem; font-weight: normal;">
+                                            <i class="fas fa-check me-1"></i>{{ t('badge_answered') }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-1" style="font-size: 0.65rem; font-weight: normal;">
+                                            {{ t('badge_unanswered') }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="d-flex align-items-center w-100">
+                                    <div class="item-meta text-truncate flex-grow-1" style="font-size: 0.75rem;">
+                                        <span class="fw-semibold">{{ creator_name }}</span>
+                                        {% if is_answered %}
+                                            <span class="text-muted">: {{ q.question }}</span>
+                                        {% else %}
+                                            <span class="text-danger">: {{ q.question }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if not is_answered and can_answer %}
+                                        <a href="#" class="text-primary fw-bold ms-1 text-decoration-none flex-shrink-0" 
+                                           data-bs-toggle="collapse" 
+                                           data-bs-target="#replyForm-dashboard_card-{{ q.id }}"
+                                           aria-expanded="false" 
+                                           aria-controls="replyForm-dashboard_card-{{ q.id }}"
+                                           style="font-size: 0.7rem;">
+                                            {{ t('btn_reply') if t('btn_reply') != 'btn_reply' else 'Trả lời' }}
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted text-nowrap" style="font-size: 0.7rem;">{{ q.created_at|format_date }}</small>
+                    </div>
+
+                    {% if is_answered %}
+                        <div class="mt-1 ms-4 ps-1 p-1 bg-success bg-opacity-10 rounded-2 border-start border-2 border-success">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                {% set answered_name = (q.answered_by.display_name or q.answered_by.username) if q.answered_by else '?' %}
+                                <div class="item-meta text-truncate" style="font-size: 0.75rem;">
+                                    <i class="fas fa-reply text-success me-1" style="font-size: 0.7rem;"></i>
+                                    <span class="fw-semibold text-success">{{ answered_name }}</span>
+                                    <span class="text-success">: {{ q.answer }}</span>
+                                </div>
+                                <small class="text-success text-nowrap" style="font-size: 0.7rem;">{{ q.answered_at|format_date }}</small>
+                            </div>
+                        </div>
+                    {% elif can_answer %}
+                        <div class="collapse mt-1" id="replyForm-dashboard_card-{{ q.id }}">
+                    <div class="card card-body bg-light border-0 p-3">
+                        <form hx-post="{{ url_for('projects.answer_question', question_id=q.id) }}" hx-target="#question-list-dashboard_card" hx-swap="outerHTML">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="source" value="dashboard_card">
+                            <div class="mb-2">
+                                <textarea class="form-control form-control-sm" name="answer" rows="3" required placeholder="{{ t('label_answer_content') if t('label_answer_content') != 'label_answer_content' else 'Nội dung trả lời' }}"></textarea>
+                            </div>
+                            <div class="text-end">
+                                <button type="button" class="btn btn-sm btn-secondary me-1" data-bs-toggle="collapse" data-bs-target="#replyForm-dashboard_card-{{ q.id }}">{{ t('btn_cancel') }}</button>
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-paper-plane me-1"></i>{{ t('btn_send_answer') if t('btn_send_answer') != 'btn_send_answer' else 'Gửi trả lời' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-5 text-muted small">{{ t('no_questions') }}</div>
+    {% endif %}
+</div>

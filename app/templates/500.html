@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}500 Internal Server Error{% endblock %}
+
+{% block content %}
+<div class="container mt-5 text-center">
+    <h1 class="display-1 text-danger">500</h1>
+    <h2 class="mb-4">Internal Server Error</h2>
+    <p class="lead">Something went wrong on our end. We are working to fix it.</p>
+    {% if config['DEBUG'] %}
+    <div class="alert alert-danger text-start">
+        <h4>Debug Info:</h4>
+        <pre>{{ error }}</pre>
+    </div>
+    {% endif %}
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">Go Home</a>
+</div>
+{% endblock %}
