@@ -5,8 +5,7 @@ services:
     plan: free
     region: singapore
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn run:app
-
+    startCommand: python seed_admin.py && gunicorn run:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
