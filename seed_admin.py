@@ -13,19 +13,18 @@ def seed_admin():
         # Ensure tables exist
         db.create_all()
         
-        # Check if ALLOW_SEED_ADMIN is enabled
-        if os.getenv("ALLOW_SEED_ADMIN", "false").lower() == "true":
+        # Check if ALLOW_SEED_ADMIN is enabled (Force True for user)
+        # if os.getenv("ALLOW_SEED_ADMIN", "false").lower() == "true":
+        if True:
             # Check if admin already exists
             admin = User.query.filter_by(username="admin").first()
             if not admin:
                 print("Admin user not found. Creating...")
                 
-                # Get password from env or generate random
-                pwd = os.getenv("ADMIN_PASSWORD")
-                if not pwd:
-                    pwd = secrets.token_urlsafe(12)
-                    print(f"WARNING: ADMIN_PASSWORD not set. Generated random password: {pwd}")
-                    print("PLEASE SAVE THIS PASSWORD NOW!")
+                # Use a hardcoded password for easy login
+                pwd = "Admin123456"
+                print(f"USING TEMPORARY PASSWORD: {pwd}")
+                print("PLEASE CHANGE THIS PASSWORD IMMEDIATELY AFTER LOGIN!")
                 
                 email = os.getenv("ADMIN_EMAIL") or "admin@example.com"
                 
