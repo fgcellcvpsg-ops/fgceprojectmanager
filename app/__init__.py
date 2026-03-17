@@ -42,6 +42,11 @@ def create_app(config_class=None):
     if database_url and database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
         
+    # Ensure SSL for PostgreSQL connections (Render requires SSL)
+    if database_url and database_url.startswith("postgresql://") and "?" not in database_url:
+        # Only add sslmode if not already present in query params
+        database_url += "?sslmode=require"
+        
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f"sqlite:///{db_uri_path}"
     
     # print(f"DEBUG: Instance Path: {app.instance_path}")
