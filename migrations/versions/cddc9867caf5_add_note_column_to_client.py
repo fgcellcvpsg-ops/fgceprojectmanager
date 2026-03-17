@@ -42,9 +42,26 @@ def upgrade():
                    type_=sa.String(length=50),
                    existing_nullable=False)
 
-    with op.batch_alter_table('project', schema=None) as batch_op:
-        batch_op.drop_constraint(batch_op.f('uq_client_po'), type_='unique')
-        batch_op.create_unique_constraint('uq_client_po', ['client_id', 'po_number'])
+    if conn.engine.name == 'postgresql':
+        # Drop constraint if exists (safe raw SQL)
+        op.execute(sa.text("ALTER TABLE project DROP CONSTRAINT IF EXISTS uq_client_po"))
+        # Create constraint if not exists (PostgreSQL doesn't support IF NOT EXISTS for constraints directly in ADD, 
+        # so we rely on standard Alembic which handles creation or raw SQL with a check)
+        # However, since we just dropped it, we can safely create it.
+        # But we need to make sure the unique constraint is not already there with a different name
+        # A simple try-except block via SQL execution is safer? No, simple is better.
+        # Since we dropped it, we add it back.
+        op.execute(sa.text("ALTER TABLE project ADD CONSTRAINT uq_client_po UNIQUE (client_id, po_number)"))
+    else:
+        with op.batch_alter_table('project', schema=None) as batch_op:
+            # For SQLite, batch operations handle constraints differently (recreating table)
+            # We try to drop it, but if it doesn't exist, Alembic might complain.
+            # Ideally, we should inspect constraints first.
+            try:
+                batch_op.drop_constraint('uq_client_po', type_='unique')
+            except ValueError:
+                pass # Constraint might not exist
+            batch_op.create_unique_constraint('uq_client_po', ['client_id', 'po_number'])
         # batch_op.drop_column('client')
 
     # ### end Alembic commands ###
