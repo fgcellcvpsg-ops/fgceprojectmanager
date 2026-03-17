@@ -7,6 +7,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: flask db upgrade && python seed_admin.py && gunicorn run:app
     envVars:
+      - key: FLASK_APP
+        value: run.py
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
