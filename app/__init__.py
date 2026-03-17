@@ -48,6 +48,15 @@ def create_app(config_class=None):
     # print(f"DEBUG: DB Path: {db_path}")
     # print(f"DEBUG: DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
+    # Configure SQLALCHEMY_ENGINE_OPTIONS for better connection pooling
+    # This helps avoid 'QueuePool limit' errors on platforms like Render
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 10,
+        'max_overflow': 20,
+        'pool_recycle': 1800,  # Recycle connections after 30 minutes
+        'pool_pre_ping': True  # Check connection health before using
+    }
+    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     if config_class:
