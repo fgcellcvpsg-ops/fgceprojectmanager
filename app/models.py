@@ -84,6 +84,7 @@ class Project(db.Model):
     
     question = db.Column(db.Text)
     source = db.Column(db.String(255))
+    note = db.Column(db.Text)
 
     __table_args__ = (
         db.UniqueConstraint('client_id', 'po_number', name='uq_client_po'),

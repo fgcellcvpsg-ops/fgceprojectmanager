@@ -573,21 +573,118 @@
                    <div class="content-card h-100 d-flex flex-column">
                        <div class="content-card-header d-flex justify-content-between align-items-center py-2" style="min-height: 45px;">
                             <h6 class="content-card-title mb-0" style="padding-left: 10px;"><i class="fas fa-question-circle text-primary me-3"></i>{{ t('card_questions') }}</h6>
-                            {% if dashboard_questions|length > 3 %}
+                            {% if dashboard_questions|length > 4 %}
                             <button type="button" class="btn btn-sm bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-1 border-0 d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#questionsModal">
-                        <span class="fw-bold" style="font-size: 0.75rem;">{{ t('btn_view_all') }}</span>
+                        <span class="fw-bold" style="font-size: 0.75rem;">{{ t('btn_view_all')|default('View all') }}</span>
                         <span class="badge bg-primary text-white rounded-pill px-2" style="font-size: 0.65rem;">{{ dashboard_questions|length }}</span>
                     </button>
                             {% endif %}
                        </div>
                        <div class="content-card-body flex-grow-1 d-flex flex-column">
-                           {% with questions=dashboard_questions %}
+                           {% with questions=dashboard_questions[:4] %}
                                {% include 'partials/dashboard_question_list.html' %}
                            {% endwith %}
                        </div>
                </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- Project Notes Card -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="content-card-header py-2 d-flex justify-content-between align-items-center">
+                     <h6 class="content-card-title mb-0 d-flex align-items-center gap-2" style="padding-left: 5px;">
+                        <i class="fas fa-sticky-note text-warning"></i>
+                        <span>{{ t('label_notes_summary') }}</span>
+                        <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill">{{ project_notes|length }}</span>
+                    </h6>
+                </div>
+                <div class="content-card-body p-3">
+                    {% if project_notes %}
+                        <div class="row g-3">
+                            {% for p in project_notes %}
+                            <div class="col-12 col-md-6">
+                                <div class="card h-100 shadow-sm border-0 bg-light">
+                                    <div class="card-body p-2">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1">
+                                                <a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="fw-bold text-decoration-none text-dark" style="font-size: 0.9rem;">
+                                                    <span class="badge bg-primary rounded-pill me-1">{{ loop.index }}</span>
+                                                    {{ p.name|project_title }}
+                                                </a>
+                                                <div class="small text-muted d-flex align-items-center gap-1 ms-auto me-2">
+                                                    <span class="badge bg-white border text-secondary">{{ p|format_code }}</span>
+                                                    {% if p.client %} <span class="ms-1">• {{ p.client.name }}</span>{% endif %}
+                                                    {% if p.latest_update_date %} <span class="ms-1 fst-italic">({{ p.latest_update_date.strftime('%d/%m/%Y') }})</span>{% endif %}
+                                                </div>
+                                            </div>
+                                            <!-- Actions -->
+                                            <div class="dropdown">
+                                                <button class="btn btn-link btn-sm text-muted p-0" type="button" data-bs-toggle="dropdown">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                                    <li>
+                                                        <a href="#" class="dropdown-item small" 
+                                                           data-bs-toggle="modal" 
+                                                           data-bs-target="#editNoteModal-{{ p.id }}">
+                                                            <i class="fas fa-edit text-warning me-2"></i>{{ t('btn_edit') }}
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <form method="POST" action="{{ url_for('projects.update_note', project_id=p.id) }}"
+                                                              hx-post="{{ url_for('projects.update_note', project_id=p.id) }}"
+                                                              hx-confirm="{{ t('confirm_delete_note') }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                            <input type="hidden" name="note" value="">
+                                                            <input type="hidden" name="source" value="dashboard">
+                                                            <button type="submit" class="dropdown-item small text-danger">
+                                                                <i class="fas fa-trash-alt me-2"></i>{{ t('btn_delete') }}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="note-content bg-white p-2 rounded border" style="font-size: 0.85rem; white-space: pre-wrap; max-height: 150px; overflow-y: auto;">{{ p.note }}</div>
+                                    </div>
+                                </div>
+
+                                <!-- Edit Modal for this note -->
+                                <div class="modal fade" id="editNoteModal-{{ p.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">{{ t('label_note') }} - {{ p.name }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <form method="POST" action="{{ url_for('projects.update_note', project_id=p.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <input type="hidden" name="source" value="dashboard">
+                                                    <div class="mb-3">
+                                                        <textarea name="note" class="form-control" rows="5">{{ p.note }}</textarea>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_cancel') }}</button>
+                                                        <button type="submit" class="btn btn-primary">{{ t('btn_save') }}</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-3">{{ t('no_notes') }}</div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 
@@ -599,8 +696,8 @@
                 <div class="content-card-header py-2 d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('projects.list', status=status_filter, q=q, client=client_filter, owner=owner, deadline_end=deadline_end, deadline_start=deadline_start, project_type=project_type) }}"
                        class="text-decoration-none d-inline-flex align-items-center">
-                        <h6 class="content-card-title mb-0 d-flex align-items-center gap-2">
-                            <i class="fas fa-list text-primary" style="margin-left: 5px;"></i>
+                        <h6 class="content-card-title mb-0 d-flex align-items-center gap-2" style="padding-left: 5px;">
+                            <i class="fas fa-list text-primary"></i>
                             <span>{{ t('title_project_list') }}</span>
                             <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill" style="font-size: 1rem;">{{ count_total_regular }}</span>
                         </h6>
@@ -649,8 +746,8 @@
                 <div class="content-card-header py-2 d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, deadline_start=deadline_start, project_type=project_type) }}"
                        class="text-decoration-none d-inline-flex align-items-center">
-                        <h6 class="content-card-title mb-0 d-flex align-items-center gap-2">
-                            <i class="fas fa-file-invoice text-primary" style="margin-left: 5px;"></i>
+                        <h6 class="content-card-title mb-0 d-flex align-items-center gap-2" style="padding-left: 5px;">
+                            <i class="fas fa-file-invoice text-primary"></i>
                             <span>{{ t('status_Quotation') }}</span>
                             <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill" style="font-size: 1rem;">{{ count_total_quotation }}</span>
                         </h6>
@@ -699,7 +796,7 @@
     </div>
 </div>
 
-{% if dashboard_questions|length > 3 %}
+{% if dashboard_questions|length > 4 %}
 <div class="modal fade" id="questionsModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">

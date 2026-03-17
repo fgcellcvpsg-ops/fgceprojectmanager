@@ -630,5 +630,92 @@ class TestSystemIntegration(unittest.TestCase):
         html = resp.data.decode('utf-8')
         self.assertNotIn(f'replyForm-dashboard_card-{question_id}', html)
 
+    def test_13_admin_can_delete_question(self):
+        self.login()
+        with self.app.app_context():
+            client = Client(name='DelQ Client', symbol='DQC')
+            db.session.add(client)
+            db.session.commit()
+            project = Project(name='DelQ Project', client_id=client.id, po_number='12121212', status='New', owner_id=self.admin_id)
+            db.session.add(project)
+            db.session.commit()
+            q = ProjectQuestion(project_id=project.id, question='Q to delete', created_by_id=self.admin_id)
+            db.session.add(q)
+            db.session.commit()
+            q_id = q.id
+        
+        resp = self.client.post(f'/question/{q_id}/delete', follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        
+        with self.app.app_context():
+            q = db.session.get(ProjectQuestion, q_id)
+            self.assertIsNone(q)
+
+    def test_14_manager_can_edit_answer(self):
+        self.login() # As Admin first to create users
+        with self.app.app_context():
+            manager = User(username='mgr_edit', email='mgr_edit@example.com', role='manager', is_allowed=True, auth_type='manual', display_name='Mgr Edit')
+            manager.set_password('123')
+            db.session.add(manager)
+            db.session.commit()
+            mgr_id = manager.id
+            
+            client = Client(name='EditAns Client', symbol='EAC')
+            db.session.add(client)
+            db.session.commit()
+            project = Project(name='EditAns Project', client_id=client.id, po_number='13131313', status='New', owner_id=self.admin_id)
+            db.session.add(project)
+            db.session.commit()
+            
+            q = ProjectQuestion(project_id=project.id, question='Q to edit', created_by_id=self.admin_id)
+            q.answer = 'Old Answer'
+            q.answered_by_id = mgr_id
+            q.answered_at = datetime.now()
+            db.session.add(q)
+            db.session.commit()
+            q_id = q.id
+
+        self.login_as(mgr_id)
+        resp = self.client.post(f'/question/{q_id}/edit_answer', data={'answer': 'New Answer'}, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        
+        with self.app.app_context():
+            q = db.session.get(ProjectQuestion, q_id)
+            self.assertEqual(q.answer, 'New Answer')
+
+    def test_15_leader_can_delete_answer(self):
+        self.login() # As Admin first
+        with self.app.app_context():
+            leader = User(username='leader_del', email='leader_del@example.com', role='leader', is_allowed=True, auth_type='manual', display_name='Leader Del')
+            leader.set_password('123')
+            db.session.add(leader)
+            db.session.commit()
+            leader_id = leader.id
+            
+            client = Client(name='DelAns Client', symbol='DAC')
+            db.session.add(client)
+            db.session.commit()
+            project = Project(name='DelAns Project', client_id=client.id, po_number='14141414', status='New', owner_id=self.admin_id)
+            db.session.add(project)
+            db.session.commit()
+            
+            q = ProjectQuestion(project_id=project.id, question='Q ans to delete', created_by_id=self.admin_id)
+            q.answer = 'Answer to delete'
+            q.answered_by_id = leader_id
+            q.answered_at = datetime.now()
+            db.session.add(q)
+            db.session.commit()
+            q_id = q.id
+
+        self.login_as(leader_id)
+        resp = self.client.post(f'/question/{q_id}/delete_answer', follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        
+        with self.app.app_context():
+            q = db.session.get(ProjectQuestion, q_id)
+            self.assertIsNone(q.answer)
+            self.assertIsNone(q.answered_at)
+            self.assertIsNone(q.answered_by_id)
+
 if __name__ == '__main__':
     unittest.main()

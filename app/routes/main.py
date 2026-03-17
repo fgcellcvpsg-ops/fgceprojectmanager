@@ -418,6 +418,13 @@ def dashboard():
     )
     dashboard_questions = [q for q in questions_all if not q.is_expired(now)]
 
+    # Project Notes for Dashboard
+    # Fetch projects with non-empty notes, respecting current filters
+    project_notes = q_stats.filter(
+        Project.note.isnot(None), 
+        Project.note != ''
+    ).order_by(Project.latest_update_date.desc()).all()
+
     if current_user.role == 'manager':
         users = User.query.filter(User.role != 'admin').order_by(User.display_name).all()
     else:
@@ -469,7 +476,8 @@ def dashboard():
         overdue_projects=overdue_projects,
         approaching_projects=approaching_projects,
         dashboard_questions=dashboard_questions,
-        upcoming_appointments=upcoming_appointments
+        upcoming_appointments=upcoming_appointments,
+        project_notes=project_notes
     )
 
 

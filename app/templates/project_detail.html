@@ -173,7 +173,25 @@
         </div>
       </div>
 
-      <!-- Question / Note Card -->
+      <!-- Note Card -->
+      <div class="card shadow-sm mt-3" id="project-note">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center bg-transparent pt-3 pb-2">
+            <span class="fs-5"><i class="fas fa-sticky-note text-warning me-2"></i>{{ t('label_note') }}</span>
+            <button type="submit" form="noteForm" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
+                <i class="fas fa-save me-1"></i>{{ t('btn_save') }}
+            </button>
+        </div>
+        <div class="card-body">
+            <form id="noteForm" method="POST" action="{{ url_for('projects.update_note', project_id=project.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-0">
+                    <textarea name="note" class="form-control border-0 bg-light" rows="1" style="resize: vertical; min-height: 40px; max-height: 300px; overflow-y: auto;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="{{ t('placeholder_note') }}">{{ project.note or '' }}</textarea>
+                </div>
+            </form>
+        </div>
+      </div>
+
+      <!-- Question Card -->
       <div class="card shadow-sm mt-3" id="question">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>❓ {{ t('label_question') }}</span>
@@ -249,7 +267,7 @@
   </div>
 </div>
 
-<!-- Công việc -->
+      <!-- Công việc -->
 <div class="card mt-4 shadow-sm border-0">
   <div class="card-header fw-bold d-flex justify-content-between align-items-center bg-transparent pt-3 pb-2">
         <span class="fs-5"><i class="fas fa-tasks text-success me-2"></i>{{ t('card_tasks_title') }}</span>

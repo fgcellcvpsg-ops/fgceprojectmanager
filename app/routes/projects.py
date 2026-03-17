@@ -1265,11 +1265,11 @@ def answer_question(question_id):
                 )
                 questions = _filter_visible_questions(questions_all, now)
                 if source == 'dashboard_card':
-                    return render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                    return render_template('partials/dashboard_question_list.html', questions=questions[:4])
                 if source == 'dashboard':
                     return render_template('partials/question_list.html', questions=questions[:10], show_project_name=True, source=source)
                 html_modal = render_template('partials/question_list.html', questions=questions, show_project_name=True, source=source)
-                html_card = render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                html_card = render_template('partials/dashboard_question_list.html', questions=questions[:4])
                 html_card = html_card.replace('id="question-list-dashboard_card"', 'id="question-list-dashboard_card" hx-swap-oob="true"')
                 return html_modal + html_card
             questions_all = ProjectQuestion.query.filter_by(project_id=q.project_id).order_by(ProjectQuestion.created_at.asc()).all()
@@ -1308,11 +1308,11 @@ def answer_question(question_id):
                 )
                 questions = _filter_visible_questions(questions_all, now)
                 if source == 'dashboard_card':
-                    return render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                    return render_template('partials/dashboard_question_list.html', questions=questions[:4])
                 if source == 'dashboard':
                     return render_template('partials/question_list.html', questions=questions[:10], show_project_name=True, source=source)
                 html_modal = render_template('partials/question_list.html', questions=questions, show_project_name=True, source=source)
-                html_card = render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                html_card = render_template('partials/dashboard_question_list.html', questions=questions[:4])
                 html_card = html_card.replace('id=\"question-list-dashboard_card\"', 'id=\"question-list-dashboard_card\" hx-swap-oob=\"true\"')
                 return html_modal + html_card
             questions_all = ProjectQuestion.query.filter_by(project_id=q.project_id).order_by(ProjectQuestion.created_at.asc()).all()
@@ -1357,13 +1357,13 @@ def answer_question(question_id):
             questions = _filter_visible_questions(questions_all, now)
 
             if source == 'dashboard_card':
-                return render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                return render_template('partials/dashboard_question_list.html', questions=questions[:4])
 
             if source == 'dashboard':
                 return render_template('partials/question_list.html', questions=questions[:10], show_project_name=True, source=source)
 
             html_modal = render_template('partials/question_list.html', questions=questions, show_project_name=True, source=source)
-            html_card = render_template('partials/dashboard_question_list.html', questions=questions[:3])
+            html_card = render_template('partials/dashboard_question_list.html', questions=questions[:4])
             html_card = html_card.replace('id="question-list-dashboard_card"', 'id="question-list-dashboard_card" hx-swap-oob="true"')
             return html_modal + html_card
         questions_all = ProjectQuestion.query.filter_by(project_id=q.project_id).order_by(ProjectQuestion.created_at.asc()).all()
@@ -1431,13 +1431,13 @@ def delete_question(question_id):
             questions = _filter_visible_questions(questions_all, now)
 
             if source == 'dashboard_card':
-                return render_template('partials/dashboard_question_list.html', questions=questions[:3])
+                return render_template('partials/dashboard_question_list.html', questions=questions[:4])
 
             if source == 'dashboard':
                 return render_template('partials/question_list.html', questions=questions[:10], show_project_name=True, source=source)
 
             html_modal = render_template('partials/question_list.html', questions=questions, show_project_name=True, source=source)
-            html_card = render_template('partials/dashboard_question_list.html', questions=questions[:3])
+            html_card = render_template('partials/dashboard_question_list.html', questions=questions[:4])
             html_card = html_card.replace('id="question-list-dashboard_card"', 'id="question-list-dashboard_card" hx-swap-oob="true"')
             return html_modal + html_card
 
@@ -1447,4 +1447,88 @@ def delete_question(question_id):
         return render_template('partials/question_list.html', project=project, questions=questions, source=source or 'project_detail')
 
     flash(t('msg_question_deleted'), "success")
+    return redirect(url_for('projects.project_detail', project_id=project_id))
+
+@projects_bp.route('/question/<int:question_id>/edit_answer', methods=['POST'])
+@login_required
+def edit_answer(question_id):
+    q = db.session.get(ProjectQuestion, question_id)
+    if not q:
+        abort(404)
+    
+    # Permission check: Admin, Manager, Leader
+    if current_user.role not in ['admin', 'manager', 'leader']:
+        flash(t('msg_access_denied'), "danger")
+        return redirect(url_for('projects.project_detail', project_id=q.project_id))
+
+    new_answer = request.form.get('answer')
+    if not new_answer:
+        flash(t('err_answer_empty'), "warning")
+    else:
+        q.answer = new_answer
+        q.answered_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        q.answered_by_id = current_user.id 
+        db.session.commit()
+        log_activity('EDIT_ANSWER', details=f'Edited answer in project {q.project.name}')
+        flash(t('msg_answer_updated'), "success")
+
+    if request.headers.get('HX-Request'):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        source = request.values.get('source')
+        questions_all = ProjectQuestion.query.filter_by(project_id=q.project_id).order_by(ProjectQuestion.created_at.asc()).all()
+        questions = _filter_visible_questions(questions_all, now)
+        if source == 'dashboard_card':
+            return render_template('partials/dashboard_question_list.html', questions=questions[:4])
+        return render_template('partials/question_list.html', project=q.project, questions=questions, source=source or 'project_detail')
+
+    return redirect(url_for('projects.project_detail', project_id=q.project_id))
+
+@projects_bp.route('/question/<int:question_id>/delete_answer', methods=['POST'])
+@login_required
+def delete_answer(question_id):
+    q = db.session.get(ProjectQuestion, question_id)
+    if not q:
+        abort(404)
+    
+    # Permission check: Admin, Manager, Leader
+    if current_user.role not in ['admin', 'manager', 'leader']:
+        flash(t('msg_access_denied'), "danger")
+        return redirect(url_for('projects.project_detail', project_id=q.project_id))
+
+    q.answer = None
+    q.answered_at = None
+    q.answered_by_id = None
+    db.session.commit()
+    log_activity('DELETE_ANSWER', details=f'Deleted answer in project {q.project.name}')
+    flash(t('msg_answer_deleted'), "success")
+
+    if request.headers.get('HX-Request'):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        source = request.values.get('source')
+        questions_all = ProjectQuestion.query.filter_by(project_id=q.project_id).order_by(ProjectQuestion.created_at.asc()).all()
+        questions = _filter_visible_questions(questions_all, now)
+        if source == 'dashboard_card':
+            return render_template('partials/dashboard_question_list.html', questions=questions[:4])
+        return render_template('partials/question_list.html', project=q.project, questions=questions, source=source or 'project_detail')
+
+    return redirect(url_for('projects.project_detail', project_id=q.project_id))
+
+@projects_bp.route('/project/<int:project_id>/update_note', methods=['POST'])
+@login_required
+def update_note(project_id):
+    project = db.session.get(Project, project_id)
+    if not project:
+        abort(404)
+        
+    note_content = request.form.get('note', '')
+    project.note = note_content
+    db.session.commit()
+    
+    log_activity('UPDATE_PROJECT', details=f'Updated note for project {project.name}')
+    flash(t('note_saved'), 'success')
+    
+    source = request.form.get('source')
+    if source == 'dashboard':
+        return redirect(url_for('main.dashboard'))
+        
     return redirect(url_for('projects.project_detail', project_id=project_id))
