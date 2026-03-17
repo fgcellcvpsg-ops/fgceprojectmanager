@@ -25,6 +25,12 @@ def upgrade():
     if 'note' not in columns:
         with op.batch_alter_table('project', schema=None) as batch_op:
             batch_op.add_column(sa.Column('note', sa.Text(), nullable=True))
+    
+    # Check client table as well
+    client_columns = [c['name'] for c in inspector.get_columns('client')]
+    if 'note' not in client_columns:
+        with op.batch_alter_table('client', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('note', sa.Text(), nullable=True))
     # ### end Alembic commands ###
 
 
