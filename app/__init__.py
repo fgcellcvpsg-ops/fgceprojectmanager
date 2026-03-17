@@ -37,14 +37,16 @@ def create_app(config_class=None):
     # Ensure correct URI format for Windows
     db_uri_path = db_path.replace('\\', '/')
     database_url = os.getenv('DATABASE_URL')
+    
+    # Render provides 'postgres://' but SQLAlchemy 1.4+ requires 'postgresql://'
     if database_url and database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
         
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f"sqlite:///{db_uri_path}"
     
-    print(f"DEBUG: Instance Path: {app.instance_path}")
-    print(f"DEBUG: DB Path: {db_path}")
-    print(f"DEBUG: DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    # print(f"DEBUG: Instance Path: {app.instance_path}")
+    # print(f"DEBUG: DB Path: {db_path}")
+    # print(f"DEBUG: DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
@@ -168,8 +170,8 @@ def create_app(config_class=None):
         return render_template('500.html', error=e), 500
 
     # Create indexes on startup (optional, or move to a command)
-    with app.app_context():
-        create_indexes(app)
+    # with app.app_context():
+    #     create_indexes(app)
 
     # Security Headers
     @app.after_request
