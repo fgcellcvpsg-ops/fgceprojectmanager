@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('title_activity_report') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 d-print-none">
+        <div>
+            <h2 class="mb-1">📋 {{ t('title_activity_report') }}</h2>
+            <div class="text-muted small">
+                {{ t('activity_summary_total') }}: <strong>{{ logs|length }}</strong>
+            </div>
+        </div>
+        <button onclick="window.print()" class="btn btn-primary">
+            <i class="fas fa-print me-2"></i>{{ t('btn_print_report') }}
+        </button>
+    </div>
+
+    <div class="report-container d-none d-print-block">
+        <table class="header-table">
+            <tr>
+                <td style="width: 22%;">
+                    <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
+                </td>
+                <td style="width: 56%;" class="report-title">
+                    {{ t('title_activity_report') }}
+                </td>
+                <td style="width: 22%;" class="report-meta">
+                    <div><strong>{{ t('report_generated_at') }}:</strong> {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    <div><strong>{{ t('report_generated_by') }}:</strong> {{ current_user.display_name or current_user.username }}</div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="summary-box">
+            <div class="summary-row">
+                <div><strong>{{ t('activity_summary_total') }}:</strong> {{ logs|length }}</div>
+                <div>
+                    <strong>{{ t('activity_summary_user') }}:</strong>
+                    {% if selected_user_id %}
+                        {% set selected = users|selectattr('id','equalto',selected_user_id)|list|first %}
+                        {{ selected.display_name if selected else t('activity_summary_all_users') }}
+                    {% else %}
+                        {{ t('activity_summary_all_users') }}
+                    {% endif %}
+                </div>
+                <div>
+                    <strong>{{ t('activity_summary_date_range') }}:</strong>
+                    {% set sd = request.args.get('start_date') %}
+                    {% set ed = request.args.get('end_date') %}
+                    {% if sd or ed %}
+                        {{ sd or '…' }} – {{ ed or '…' }}
+                    {% else %}
+                        {{ t('activity_summary_all_dates') }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-section d-print-none">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <div class="filter-label">{{ t('label_user') }}</div>
+                <select class="form-select" id="user_id" name="user_id">
+                    <option value="">{{ t('label_all_users') }}</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if selected_user_id == user.id %}selected{% endif %}>
+                        {{ user.display_name }} ({{ user.username }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="filter-label">{{ t('label_from_date') }}</div>
+                <input type="date" class="form-control" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <div class="filter-label">{{ t('label_to_date') }}</div>
+                <input type="date" class="form-control" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i>{{ t('btn_filter') }}
+                </button>
+            </div>
+        </form>
+        <div class="row g-3 mt-3">
+            <div class="col-md-4">
+                <div class="filter-label">{{ t('activity_summary_user') }}</div>
+                <div>
+                    {% if selected_user_id %}
+                        {% set selected = users|selectattr('id','equalto',selected_user_id)|list|first %}
+                        {{ selected.display_name if selected else t('activity_summary_all_users') }}
+                    {% else %}
+                        {{ t('activity_summary_all_users') }}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="filter-label">{{ t('activity_summary_date_range') }}</div>
+                <div>
+                    {% set sd = request.args.get('start_date') %}
+                    {% set ed = request.args.get('end_date') %}
+                    {% if sd or ed %}
+                        {{ sd or '…' }} – {{ ed or '…' }}
+                    {% else %}
+                        {{ t('activity_summary_all_dates') }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col" class="ps-4">{{ t('col_time') }}</th>
+                        <th scope="col">{{ t('label_user') }}</th>
+                        <th scope="col">{{ t('col_action') }}</th>
+                        <th scope="col">{{ t('col_details') }}</th>
+                        <th scope="col">{{ t('col_ip_address') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    {% set action = log.action or '' %}
+                    {% set action_key = 'activity_' ~ action %}
+                    {% set action_label = t(action_key) if t(action_key) != action_key else action %}
+                    {% set badge_class = 'bg-secondary' %}
+                    {% if action[:7] == 'CREATE_' %}
+                        {% set badge_class = 'bg-success' %}
+                    {% elif action[:7] == 'UPDATE_' %}
+                        {% set badge_class = 'bg-info' %}
+                    {% elif action[:7] == 'DELETE_' %}
+                        {% set badge_class = 'bg-danger' %}
+                    {% elif action in ['LOGIN', 'LOGOUT'] %}
+                        {% set badge_class = 'bg-primary' %}
+                    {% endif %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="text-nowrap">{{ log.timestamp.strftime('%b %d, %y') }}</div>
+                            <div class="text-nowrap text-muted small">{{ log.timestamp.strftime('%H:%M:%S') }}</div>
+                        </td>
+                        <td>
+                            <div class="fw-bold">{{ log.user.display_name }}</div>
+                            <div class="small text-muted">{{ log.user.username }}</div>
+                        </td>
+                        <td>
+                            <span class="badge {{ badge_class }} rounded-pill">{{ action_label }}</span>
+                        </td>
+                        <td>{{ log.details }}</td>
+                        <td class="text-muted small">{{ log.ip_address }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            {{ t('activity_no_data') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="mt-3 text-muted small d-none d-print-block">
+        <p>{{ t('activity_print_generated_at') }}: {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+    </div>
+</div>
+
+<style>
+    @media print {
+        @page { size: A4; margin: 15mm; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        nav, footer { display: none !important; }
+        main { padding: 0 !important; margin: 0 !important; }
+
+        body::before {
+            content: "FG Consulting Engineers";
+            position: fixed;
+            top: 40%;
+            left: 20%;
+            font-size: 48px;
+            color: rgba(4, 3, 141, 0.08);
+            transform: rotate(-30deg);
+            z-index: -1;
+            white-space: nowrap;
+        }
+
+        .d-print-none {
+            display: none !important;
+        }
+        .d-print-block {
+            display: block !important;
+        }
+
+        .container-fluid { padding: 0 !important; margin: 0 !important; }
+        .table-card { border: none !important; box-shadow: none !important; }
+        .table-responsive { overflow: visible !important; }
+        .table { width: 100% !important; border-collapse: collapse !important; margin-top: 0 !important; font-size: 11px; }
+        .table thead th { background-color: #f0f4ff !important; color: #04038d !important; border: 1px solid #ccc !important; text-transform: uppercase; font-weight: 800; letter-spacing: .3px; padding: 8px !important; }
+        .table tbody td { border: 1px solid #ccc !important; padding: 7px !important; vertical-align: top; }
+
+        .badge { background: transparent !important; color: #04038d !important; border: 1px solid #04038d !important; }
+        .text-muted { color: #555 !important; }
+    }
+
+    .header-table { width: 100%; border-bottom: 2px solid #04038d; margin-bottom: 14px; padding-bottom: 8px; }
+    .header-table td { border: none; padding: 0; vertical-align: middle; }
+    .logo { height: 54px; }
+    .report-title { font-size: 18px; color: #04038d; font-weight: 800; text-align: center; text-transform: uppercase; white-space: nowrap; }
+    .report-meta { text-align: right; font-size: 11px; color: #555; }
+
+    .summary-box { border: 2px solid #04038d; padding: 10px 12px; margin-bottom: 14px; background: #f0f4ff; font-size: 12px; }
+    .summary-row { display: flex; gap: 16px; flex-wrap: wrap; }
+</style>
+{% endblock %}

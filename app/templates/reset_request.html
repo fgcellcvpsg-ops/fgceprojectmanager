@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_forgot_password') }}{% endblock %}
+{% block content %}
+<div class="container mt-5 fade-in" style="max-width: 420px;">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h1 class="page-title text-center"><i class="fas fa-key text-primary me-2"></i>{{ t('heading_forgot_password') }}</h1>
+      <p class="text-muted text-center mb-4">{{ t('msg_forgot_password_desc') }}</p>
+
+      <form method="POST" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="mb-3">
+          <label for="email" class="form-label">{{ t('label_email') }}</label>
+          <input type="email" class="form-control" id="email" name="email" required placeholder="{{ t('placeholder_email_forgot') }}">
+        </div>
+
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-primary">{{ t('btn_send_reset_link') }}</button>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-light">{{ t('btn_back_to_login') }}</a>
+        </div>
+      </form>
+
+      <hr class="my-3">
+      <div class="text-center">
+        <small class="text-muted">{{ t('footer_text') }}</small>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

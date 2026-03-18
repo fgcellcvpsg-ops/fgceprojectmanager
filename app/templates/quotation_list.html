@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}{{ t('page_quotation_list_title') }}{% endblock %}
+
+{% block content %}
+<style>
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .status-new { background-color: #e2e3e5; color: #383d41; }
+    .status-inprogress { background-color: #cff4fc; color: #055160; }
+    .status-quote-sent { background-color: #e0cffc; color: #480560; }
+    .status-submitted { background-color: #fff3cd; color: #664d03; }
+    .status-lost { background-color: #f8d7da; color: #842029; }
+    .progress-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .progress-not-started { background-color: #e2e3e5; color: #383d41; }
+    .progress-doing { background-color: #cff4fc; color: #055160; }
+    .progress-quote-sent { background-color: #e0cffc; color: #480560; }
+    .progress-submitted { background-color: #fff3cd; color: #664d03; }
+</style>
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="page-title">
+                {{ t('page_quotation_list_title') }}
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button onclick="window.print()" class="btn btn-outline-secondary btn-sm d-print-none" title="{{ t('btn_print_this_page') if t('btn_print_this_page') != 'btn_print_this_page' else 'In trang này' }}">
+                <i class="fas fa-print"></i>
+            </button>
+            <!-- View Switcher -->
+            <div class="btn-group me-2" role="group">
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-sm fw-bold btn-outline-primary">
+                    <i class="fas fa-list-ul me-2"></i>{{ t('nav_project_list') }}
+                </a>
+                <a href="{{ url_for('main.quotation_list') }}" class="btn btn-sm fw-bold btn-primary">
+                    <i class="fas fa-file-invoice-dollar me-2"></i>{{ t('nav_quotation_list') }}
+                </a>
+            </div>
+            <!-- Quotation Sub-status Filters -->
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('main.quotation_list') }}"
+                   class="btn btn-sm btn-light border fw-bold {% if not request.args.get('qstatus') %}active{% endif %}">
+                    Tổng
+                    <span class="badge bg-light text-dark border ms-1">
+                        {{ quotation_counts.not_started + quotation_counts.doing + quotation_counts.quote_sent }}
+                    </span>
+                </a>
+                
+                <a href="{{ url_for('main.quotation_list', qstatus='Not Started') }}"
+                   class="btn btn-sm fw-bold {% if request.args.get('qstatus') == 'Not Started' %}active{% endif %}" style="background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db;">
+                    {{ t('quotation_not_started') }}
+                    <span class="badge bg-white text-dark ms-1">{{ quotation_counts.not_started }}</span>
+                </a>
+
+                <a href="{{ url_for('main.quotation_list', qstatus='Doing') }}"
+                   class="btn btn-sm fw-bold {% if request.args.get('qstatus') == 'Doing' %}active{% endif %}" style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb;">
+                    {{ t('quotation_doing') }}
+                    <span class="badge bg-white text-dark ms-1">{{ quotation_counts.doing }}</span>
+                </a>
+
+                <a href="{{ url_for('main.quotation_list', qstatus='Quote Sent') }}"
+                   class="btn btn-sm fw-bold {% if request.args.get('qstatus') == 'Quote Sent' %}active{% endif %}" style="background-color: #e0cffc; color: #480560; border: 1px solid #d3b6fb;">
+                    {{ t('quotation_quote_sent') }}
+                    <span class="badge bg-white text-dark ms-1">{{ quotation_counts.quote_sent }}</span>
+                </a>
+
+                <a href="{{ url_for('main.quotation_list', qstatus='Submitted') }}"
+                   class="btn btn-sm fw-bold {% if request.args.get('qstatus') == 'Submitted' %}active{% endif %}" style="background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5;">
+                    {{ t('quotation_submitted') }}
+                    <span class="badge bg-white text-dark ms-1">{{ quotation_counts.submitted }}</span>
+                </a>
+            </div>
+
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-plus me-2"></i>{{ t('btn_add_project') }}
+                </button>
+                <ul class="dropdown-menu shadow-sm border-0 rounded-3 mt-2">
+                    <li>
+                        <a class="dropdown-item py-2" href="{{ url_for('projects.add_project') }}">
+                            <i class="fas fa-folder-plus me-2 text-primary"></i>{{ t('menu_add_project') }}
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item py-2" href="{{ url_for('projects.add_quotation') }}">
+                            <i class="fas fa-file-invoice-dollar me-2 text-success"></i>{{ t('menu_add_quotation') }}
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quotation List Table -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr class="align-middle">
+                            <th class="ps-4 py-3 text-secondary text-uppercase small fw-bold" style="width: 40%;">{{ t('col_project_name') }}</th>
+                            <th class="py-3 text-secondary text-uppercase small fw-bold">{{ t('col_client') }}</th>
+                            <th class="py-3 text-secondary text-uppercase small fw-bold">{{ t('col_assignee') }}</th>
+                            <th class="py-3 text-secondary text-uppercase small fw-bold">{{ t('col_status') }}</th>
+                            <th class="py-3 text-secondary text-uppercase small fw-bold">{{ t('col_progress') }}</th>
+                            <th class="py-3 text-secondary text-uppercase small fw-bold">{{ t('col_created') }}</th>
+                            <th class="pe-4 py-3 text-end text-secondary text-uppercase small fw-bold">{{ t('col_actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in projects %}
+                        <tr>
+                            <td class="ps-4">
+                                <a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="fw-bold text-decoration-none text-dark">
+                                    {{ p.name }}
+                                </a>
+                                {% if p.po_number %}
+                                <div class="small text-muted mt-1">PO: {{ p|format_code }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ p.client.name if p.client else 'N/A' }}</span>
+                            </td>
+                            <td>
+                                {% if p.owners %}
+                                    <div class="d-flex align-items-center">
+                                        {% for owner in p.owners[:2] %}
+                                            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary me-1">{{ owner.display_name or owner.username }}</span>
+                                        {% endfor %}
+                                        {% if p.owners|length > 2 %}
+                                            <span class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary">+{{ p.owners|length - 2 }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% elif p.owner %}
+                                    <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary">{{ p.owner.display_name or p.owner.username }}</span>
+                                {% else %}
+                                    <span class="text-muted small">--</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if request.args.get('qstatus') == 'Submitted' %}
+                                    <span class="status-badge status-submitted">Submitted</span>
+                                {% else %}
+                                    {% set s_class = 'status-new' %}
+                                    {% set status_label = p.status %}
+                                    {% if 'In Progress' in p.status %}
+                                        {% set s_class = 'status-inprogress' %}
+                                        {% set status_label = t('quotation_doing') %}
+                                    {% elif 'Quote Sent' in p.status %}
+                                        {% set s_class = 'status-quote-sent' %}
+                                        {% set status_label = t('quotation_quote_sent') %}
+                                    {% elif 'Submitted' in p.status %}
+                                        {% set s_class = 'status-submitted' %}
+                                        {% set status_label = t('quotation_submitted') %}
+                                    {% elif 'Not Started' in p.status %}
+                                        {% set status_label = t('quotation_not_started') %}
+                                    {% endif %}
+                                    <span class="status-badge {{ s_class }}">
+                                        {{ status_label }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if request.args.get('qstatus') == 'Submitted' %}
+                                    <span class="progress-badge progress-submitted">{{ t('quotation_submitted') }}</span>
+                                {% else %}
+                                    {% set prog_label = '' %}
+                                    {% set p_class = '' %}
+                                    {% if 'Quotation - Not Started' in p.status or p.status == 'Quotation' %}
+                                        {% set prog_label = t('quotation_not_started') %}
+                                        {% set p_class = 'progress-not-started' %}
+                                    {% elif 'In Progress' in p.status %}
+                                        {% set prog_label = t('quotation_doing') %}
+                                        {% set p_class = 'progress-doing' %}
+                                    {% elif 'Quote Sent' in p.status %}
+                                        {% set prog_label = t('quotation_quote_sent') %}
+                                        {% set p_class = 'progress-quote-sent' %}
+                                    {% elif 'Submitted' in p.status %}
+                                        {% set prog_label = t('quotation_submitted') %}
+                                        {% set p_class = 'progress-submitted' %}
+                                    {% endif %}
+                                    {% if prog_label %}
+                                        <span class="progress-badge {{ p_class }}">{{ prog_label }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="text-muted small">
+                                    {{ p.latest_update_date.strftime('%d/%m/%Y') if p.latest_update_date else 'N/A' }}
+                                </span>
+                            </td>
+                            <td class="pe-4 text-end">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light border dropdown-toggle no-caret" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v text-secondary"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                        <li><a class="dropdown-item" href="{{ url_for('projects.project_detail', project_id=p.id) }}"><i class="fas fa-eye me-2 text-primary"></i>{{ t('btn_view_details') }}</a></li>
+                                        
+                                        {% if current_user.role in ['admin','manager','leader', 'quotation'] %}
+                                        <li><a class="dropdown-item" href="{{ url_for('projects.edit_project', project_id=p.id) }}"><i class="fas fa-edit me-2 text-warning"></i>{{ t('btn_edit') }}</a></li>
+                                        {% endif %}
+                                        
+                                        {% if current_user.role in ['admin','manager'] or (current_user.role == 'quotation' and p.status and p.status.startswith('Quotation')) %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form method="POST" action="{{ url_for('projects.delete_project', project_id=p.id) }}" data-confirm="{{ t('confirm_delete') }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="dropdown-item text-danger"><i class="fas fa-trash-alt me-2"></i>{{ t('btn_delete') }}</button>
+                                            </form>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="fas fa-folder-open fa-3x mb-3 text-light"></i>
+                                <p class="mb-0">{{ t('no_quotations') }}</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <div class="card-footer bg-white border-0 py-3 d-flex justify-content-center">
+            <nav aria-label="Page navigation">
+                <ul class="pagination mb-0">
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link border-0 rounded-circle mx-1 d-flex align-items-center justify-content-center" href="{{ url_for('main.quotation_list', page=pagination.prev_num) if pagination.has_prev else '#' }}" style="width: 32px; height: 32px;">
+                            <i class="fas fa-chevron-left small"></i>
+                        </a>
+                    </li>
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            <li class="page-item {{ 'active' if page_num == pagination.page }}">
+                                <a class="page-link border-0 rounded-circle mx-1 d-flex align-items-center justify-content-center fw-bold" href="{{ url_for('main.quotation_list', page=page_num) }}" style="width: 32px; height: 32px;">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link border-0 bg-transparent">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link border-0 rounded-circle mx-1 d-flex align-items-center justify-content-center" href="{{ url_for('main.quotation_list', page=pagination.next_num) if pagination.has_next else '#' }}" style="width: 32px; height: 32px;">
+                            <i class="fas fa-chevron-right small"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

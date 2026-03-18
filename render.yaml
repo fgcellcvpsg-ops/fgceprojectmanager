@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: fgceprojectmanager
+    env: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: flask db upgrade && python seed_admin.py && gunicorn run:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FLASK_APP
+        value: run.py
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fgceprojectmanager-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.12.0
+databases:
+  - name: fgceprojectmanager-db
+    databaseName: fgceprojectmanager
+    user: fgceprojectmanager_user
+    plan: free
+    region: singapore # Chọn region gần Việt Nam nhất có thể (Singapore)

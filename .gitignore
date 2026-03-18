@@ -1,0 +1,31 @@
+# Environments
+.env
+.venv
+venv/
+env/
+__pycache__/
+*.pyc
+instance/
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Database
+*.db
+*.sqlite3
+app/data/*.db
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+temp_backup/
+
+# Build
+dist/
+build/
+*.egg-info/

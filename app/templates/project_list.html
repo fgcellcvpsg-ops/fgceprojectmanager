@@ -1,0 +1,829 @@
+{% extends "base.html" %}
+{% block title %}
+    {% if status_filter == 'Quotation' %}
+        {{ t('page_quotation_list_title') }}
+    {% else %}
+        {{ t('title_project_list') }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<style nonce="{{ g.csp_nonce }}">
+    /* Dashboard Specific Styles (Local overrides only) */
+    [data-theme="light"] body {
+        background-color: #eef2f6 !important; /* Cool gray-blue background for dashboard */
+    }
+
+    .dashboard-container {
+        padding: 1.5rem;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    .dashboard-header {
+        margin-bottom: 2rem;
+    }
+
+    .project-title-link {
+        font-size: 1.1rem;
+        text-decoration: none;
+    }
+
+    .project-title-link:hover {
+        text-decoration: none;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .dashboard-container { padding: 1rem; }
+    }
+
+    /* --- Uniform Card Styles --- */
+    /* Base style for ALL cards on dashboard to ensure consistency */
+    .dashboard-card-base {
+        background: var(--app-bg-surface, #fff);
+        border: 1px solid var(--bs-border-color); /* Uniform border */
+        border-radius: 12px; /* Uniform radius */
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        overflow: hidden;
+    }
+
+    /* Apply base style to existing classes */
+    .content-card, .stat-card, .table-card {
+        border: 1px solid var(--bs-border-color) !important; /* Force override inline or other styles */
+        border-radius: 12px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .dashboard-container .table-responsive {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    .dashboard-container .card.table-card {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .progress-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .progress-doing { background-color: #cff4fc; color: #055160; }
+    .progress-quote-sent { background-color: #e0cffc; color: #480560; }
+    .progress-submitted { background-color: #fff3cd; color: #664d03; }
+
+    .card-header {
+        background-color: #cbd5e0; /* Gray-blue darker than card header */
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+    
+    [data-theme="dark"] .card-header {
+        background-color: #2d3748;
+        border-bottom-color: #4a5568;
+    }
+    
+    /* Apply white bg to th */
+    .table tbody td {
+        background-color: #fff;
+    }
+    
+    [data-theme="dark"] .table tbody td {
+        background-color: transparent;
+    }
+    
+    .card-header h5 {
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        color: #04038d !important;
+    }
+    
+    [data-theme="dark"] .card-header h5 {
+        color: var(--bs-primary) !important;
+    }
+
+    /* Status Badges */
+    .status-badge {
+        padding: 0.25em 0.6em;
+        font-size: 75%;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .status-badge.status-close {
+        background-color: #795548;
+        color: #fff;
+    }
+
+    .status-badge.status-completed {
+        background-color: #198754;
+        color: #fff;
+    }
+
+    .status-badge.status-on-hold {
+        background-color: #f59e0b;
+        color: #000;
+    }
+
+    .status-badge.status-in-progress {
+        background-color: #04038d;
+        color: #fff;
+    }
+
+    .status-badge.status-new {
+        background-color: #0dcaf0;
+        color: #000;
+    }
+
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    .form-check-input {
+        border: 1px solid #ced4da;
+    }
+    
+    [data-theme="dark"] .form-check-input {
+        border-color: #4a5568;
+        background-color: transparent;
+    }
+
+    .status-mini-cards {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+
+    .status-mini-cards .stat-card.stat-mini .stat-label {
+        font-size: 0.85rem !important; /* Increased font size */
+        font-weight: 700; /* Bold */
+        text-transform: uppercase;
+        color: #6c757d;
+    }
+    
+    .status-mini-cards .stat-card.stat-mini .stat-value {
+        font-size: 1.5rem !important; /* Increased font size */
+        font-weight: 700;
+        line-height: 1;
+    }
+    
+    /* Custom colors for mini cards */
+    .status-mini-cards .stat-card.stat-mini {
+        border-left: 5px solid transparent !important;
+        background-color: var(--app-bg-surface);
+        padding: 0.5rem 0.75rem !important;
+    }
+    
+    .status-mini-cards .stat-card.stat-mini.quotation { border-left-color: #0d6efd !important; }
+    .status-mini-cards .stat-card.stat-mini.quotation .stat-value { color: #0d6efd; }
+    
+    .status-mini-cards .stat-card.stat-mini.primary { border-left-color: #0dcaf0 !important; }
+    .status-mini-cards .stat-card.stat-mini.primary .stat-value { color: #0dcaf0; }
+    
+    .status-mini-cards .stat-card.stat-mini.success { border-left-color: #198754 !important; }
+    .status-mini-cards .stat-card.stat-mini.success .stat-value { color: #198754; }
+    
+    .status-mini-cards .stat-card.stat-mini.close-status { border-left-color: #795548 !important; }
+    .status-mini-cards .stat-card.stat-mini.close-status .stat-value { color: #795548; }
+    
+    .status-mini-cards .stat-card.stat-mini.secondary { border-left-color: #6c757d !important; }
+    .status-mini-cards .stat-card.stat-mini.secondary .stat-value { color: #6c757d; }
+    
+    .status-mini-cards .stat-card.stat-mini.warning { border-left-color: #ffc107 !important; }
+    .status-mini-cards .stat-card.stat-mini.warning .stat-value { color: #ffc107; }
+    
+    .status-mini-cards .stat-card.stat-mini.info { border-left-color: #0dcaf0 !important; }
+    .status-mini-cards .stat-card.stat-mini.info .stat-value { color: #0dcaf0; }
+
+    @media (max-width: 768px) {
+        .status-mini-cards {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 576px) {
+        .status-mini-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+</style>
+
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="page-title">
+                {% if status_filter == 'Quotation' %}
+                    {{ t('page_quotation_list_title') }}
+                {% else %}
+                    {{ t('title_project_list') }}
+                {% endif %}
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('export.print_project_list_html', project_type=project_type, status=status_filter, q=q, client=client_filter, owner=owner, deadline_end=deadline_end) }}" target="_blank"
+                    class="btn btn-outline-secondary btn-sm fw-bold d-print-none"
+                    title="{{ t('btn_print_this_page') }}">
+                <i class="fas fa-print"></i>
+            </a>
+            {% if status_filter == 'Quotation' or current_user.role != 'quotation' %}
+            <a href="{{ url_for('projects.add_quotation') if status_filter == 'Quotation' else url_for('projects.add_project') }}" class="btn btn-primary btn-sm fw-bold">
+                <i class="fas {{ 'fa-file-invoice-dollar' if status_filter == 'Quotation' else 'fa-plus' }} me-2"></i>{{ t('btn_add_quotation') if status_filter == 'Quotation' else t('btn_add_project') }}
+            </a>
+            {% endif %}
+            <div class="dropdown">
+                <button class="btn btn-light btn-sm border fw-bold dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-2"></i>{{ t('btn_export_report') }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 mt-2">
+                    <li>
+                        <a class="dropdown-item py-2" href="{{ url_for('export.print_dashboard_html') }}" target="_blank">
+                            <i class="fas fa-print me-2 text-primary"></i>{{ t('btn_print_report_html') }}
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button id="printSelectedBtn" class="dropdown-item py-2"><i class="fas fa-print me-2"></i>{{ t('btn_print_projects') }}</button></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search -->
+    <form class="filter-section mb-3" method="GET" action="{{ url_for('projects.list') }}">
+        {% if project_type %}
+        <input type="hidden" name="project_type" value="{{ project_type }}">
+        {% endif %}
+        <input type="hidden" name="status" value="{{ status_filter or '' }}">
+        
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="filter-label"><i class="fas fa-search me-1"></i>{{ t('search_label') }}</label>
+                <input type="text" name="q" value="{{ q or '' }}" class="form-control form-control-sm search-input-custom" placeholder="{{ t('search_placeholder') }}">
+            </div>
+            
+            <div class="col-md-2">
+                <label class="filter-label"><i class="fas fa-user-tie me-1"></i>{{ t('filter_client') }}</label>
+                <select name="client" class="form-select form-select-sm">
+                    <option value="">{{ t('filter_all_clients') }}</option>
+                    {% for c in clients %}
+                    <option value="{{ c }}" {% if client_filter == c %}selected{% endif %}>{{ c }} ({{ client_counts[c] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="filter-label"><i class="fas fa-user me-1"></i>{{ t('filter_owner') }}</label>
+                <select name="owner" class="form-select form-select-sm" {% if current_user.role in ['member', 'quotation'] %}disabled style="background-color: #e9ecef; cursor: not-allowed;" title="Cannot change this filter"{% endif %}>
+                    <option value="">{{ t('filter_all_owners') }}</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if owner and owner|int == u.id %}selected{% endif %}>{{ u.display_name or u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="filter-label"><i class="fas fa-calendar me-1"></i>{{ t('deadline_to') }}</label>
+                <input type="date" name="deadline_end" value="{{ deadline_end or '' }}" class="form-control form-control-sm">
+            </div>
+            
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-filter me-2"></i>{{ t('btn_filter') }}</button>
+                <a href="{{ url_for('projects.list') }}" class="btn btn-light btn-sm border" title="{{ t('filter_reset_title') }}"><i class="fas fa-undo"></i></a>
+            </div>
+        </div>
+    </form>
+
+    {% if status_filter != 'Quotation' %}
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <a href="{{ url_for('projects.list', status=None, project_type=None, q=q, client=client_filter, owner=owner, deadline_end=deadline_end) }}" class="text-decoration-none">
+                <div class="stat-card stat-card-selectable bg-white p-3 d-flex flex-row align-items-center justify-content-between {% if not project_type %}active{% endif %}" style="min-height: 100px;">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon text-primary bg-transparent p-0 m-0" style="font-size: 2.5rem; width: auto; height: auto;"><i class="fas fa-folder"></i></div>
+                        <div class="stat-label mb-0 text-uppercase text-secondary fw-bold" style="font-size: 1rem;">{{ t('summary_total_projects') }}</div>
+                    </div>
+                    <div class="stat-value mt-0 lh-1 text-stat-primary" style="font-size: 4rem;">{{ total_projects_count }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{{ url_for('projects.list', project_type=(None if project_type == 'FGC' else 'FGC'), status=status_filter, q=q, client=client_filter, owner=owner, deadline_end=deadline_end) }}" class="text-decoration-none">
+                <div class="stat-card stat-card-selectable bg-white p-3 d-flex flex-row align-items-center justify-content-between {% if project_type == 'FGC' %}active{% endif %}" style="min-height: 100px;">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon text-info bg-transparent p-0 m-0" style="font-size: 2.5rem; width: auto; height: auto;"><i class="fas fa-industry"></i></div>
+                        <div class="stat-label mb-0 text-uppercase text-secondary fw-bold" style="font-size: 1rem;">{{ t('type_fgc_title') }}</div>
+                    </div>
+                    <div class="stat-value mt-0 lh-1 text-stat-info" style="font-size: 4rem;">{{ fgc_count }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{{ url_for('projects.list', project_type=(None if project_type == 'PEI' else 'PEI'), status=status_filter, q=q, client=client_filter, owner=owner, deadline_end=deadline_end) }}" class="text-decoration-none">
+                <div class="stat-card stat-card-selectable bg-white p-3 d-flex flex-row align-items-center justify-content-between {% if project_type == 'PEI' %}active{% endif %}" style="min-height: 100px;">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon text-info bg-transparent p-0 m-0" style="font-size: 2.5rem; width: auto; height: auto;"><i class="fas fa-building"></i></div>
+                    <div class="stat-label mb-0 text-uppercase text-secondary fw-bold" style="font-size: 1rem;">{{ t('type_pei_title') }}</div>
+                    </div>
+                    <div class="stat-value mt-0 lh-1 text-stat-info" style="font-size: 4rem;">{{ pei_count }}</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    {% endif %}
+
+    {% if status_filter != 'Quotation' %}
+    <div class="status-mini-cards mb-3">
+        <div>
+            <a href="{{ url_for('projects.list', status=(None if status_filter == 'New' else 'New'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable secondary d-flex flex-column justify-content-center p-0 w-100 {% if status_filter == 'New' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('status_New') }}</div>
+                        <div class="stat-value mb-0">{{ count_new }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status=(None if status_filter == 'In Progress' else 'In Progress'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable primary d-flex flex-column justify-content-center p-0 w-100 {% if status_filter == 'In Progress' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('status_In_Progress') }}</div>
+                        <div class="stat-value mb-0">{{ count_inprogress }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status=(None if status_filter == 'On Hold' else 'On Hold'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable warning d-flex flex-column justify-content-center p-0 w-100 {% if status_filter == 'On Hold' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('status_On_Hold') }}</div>
+                        <div class="stat-value mb-0">{{ count_on_hold }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status=(None if status_filter == 'Completed' else 'Completed'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable success d-flex flex-column justify-content-center p-0 w-100 {% if status_filter == 'Completed' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('status_Completed') }}</div>
+                        <div class="stat-value mb-0">{{ count_completed }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status=(None if status_filter == 'Close' else 'Close'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable close-status d-flex flex-column justify-content-center p-0 w-100 {% if status_filter == 'Close' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('status_Close') }}</div>
+                        <div class="stat-value mb-0">{{ count_close }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <div class="status-mini-cards mb-3" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+        <div>
+            <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type) }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable secondary d-flex flex-column justify-content-center p-0 w-100 {% if not request.args.get('qstatus') %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">{{ t('summary_total_projects') }}</div>
+                        <div class="stat-value mb-0">
+                            {{ quotation_counts.not_started + quotation_counts.doing + quotation_counts.quote_sent }}
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type, qstatus='Not Started') }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable quotation d-flex flex-column justify-content-center p-0 w-100 {% if request.args.get('qstatus') == 'Not Started' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">Not Started</div>
+                        <div class="stat-value mb-0">{{ quotation_counts.not_started }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type, qstatus='Doing') }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable primary d-flex flex-column justify-content-center p-0 w-100 {% if request.args.get('qstatus') == 'Doing' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">In Progress</div>
+                        <div class="stat-value mb-0">{{ quotation_counts.doing }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type, qstatus='Quote Sent') }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable close-status d-flex flex-column justify-content-center p-0 w-100 {% if request.args.get('qstatus') == 'Quote Sent' %}active{% endif %}" style="border-left-color: #480560 !important;">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap" style="color: #480560;">Quote Sent</div>
+                        <div class="stat-value mb-0" style="color: #480560;">{{ quotation_counts.quote_sent }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div>
+            <a href="{{ url_for('projects.list', status='Quotation', q=q, client=client_filter, owner=owner, deadline_end=deadline_end, project_type=project_type, qstatus='Submitted') }}" class="text-decoration-none">
+                <div class="stat-card stat-mini stat-card-selectable info d-flex flex-column justify-content-center p-0 w-100 {% if request.args.get('qstatus') == 'Submitted' %}active{% endif %}">
+                    <div class="d-flex flex-row align-items-center justify-content-between w-100 px-3 py-2">
+                        <div class="stat-label mb-0 text-nowrap">Submitted</div>
+                        <div class="stat-value mb-0">{{ quotation_counts.submitted }}</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Project List -->
+    <div class="card table-card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center py-3">
+            <h5 class="mb-0 fw-bold">
+                <i class="fas fa-list me-2"></i>
+                {% if status_filter == 'Quotation' %}
+                    {{ t('page_quotation_list_title') }}
+                {% else %}
+                    {{ t('title_project_list') }}
+                {% endif %}
+            </h5>
+            <div class="d-flex align-items-center gap-2">
+                 <!-- View Mode Toggles (Optional) -->
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th style="width: 40px;" class="text-center">
+                            <input type="checkbox" class="form-check-input" id="selectAll">
+                        </th>
+                        <th style="width: 35%;">
+                            <a href="{{ url_for('projects.list', sort='name', order=('desc' if current_sort == 'name' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_project_name') }}
+                                {% if current_sort == 'name' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('projects.list', sort='code', order=('desc' if current_sort == 'code' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_code') }}
+                                {% if current_sort == 'code' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('projects.list', sort='client', order=('desc' if current_sort == 'client' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_client') }}
+                                {% if current_sort == 'client' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('projects.list', sort='deadline', order=('desc' if current_sort == 'deadline' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_deadline') }}
+                                {% if current_sort == 'deadline' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th style="width: 15%;">
+                            <a href="{{ url_for('projects.list', sort='progress', order=('desc' if current_sort == 'progress' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_progress') }}
+                                {% if current_sort == 'progress' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% if status_filter != 'Quotation' %}
+                        <th style="width: 20%;">
+                            <a href="{{ url_for('projects.list', sort='last_update', order=('desc' if current_sort == 'last_update' and current_order == 'asc' else 'asc'), q=q, client=client_filter, owner=owner, deadline_end=deadline_end, status=status_filter, project_type=project_type) }}" class="text-dark text-decoration-none d-flex align-items-center justify-content-between">
+                                {{ t('col_last_update') }}
+                                {% if current_sort == 'last_update' %}
+                                    <i class="fas fa-sort-{{ 'up' if current_order == 'asc' else 'down' }} ms-1"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted ms-1 opacity-25"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% endif %}
+                        <th class="text-end">{{ t('col_actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in projects %}
+                    <tr class="position-relative">
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input project-check" name="project_ids[]" value="{{ p.id }}">
+                        </td>
+                        
+                        <!-- Project Name, Owner, Status -->
+                        <td>
+                            <div class="d-flex flex-column w-100">
+                                <div class="d-flex align-items-center">
+                                    <div class="project-icon me-3">
+                                        {% if p.priority == 'high' %}
+                                            <div class="icon-circle bg-danger bg-opacity-10 text-danger"><i class="fas fa-fire"></i></div>
+                                        {% else %}
+                                            <div class="icon-circle bg-primary bg-opacity-10 text-primary"><i class="fas fa-folder"></i></div>
+                                        {% endif %}
+                                    </div>
+                                    <a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="project-title-link fw-bold d-block mb-1" style="color: var(--bs-body-color);">
+                                        {{ p.name|project_title }}
+                                    </a>
+                                </div>
+                                <div class="d-flex justify-content-end align-items-center gap-2">
+                                    {% if p.owners %}
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user-circle text-muted me-2 small"></i>
+                                            <span class="text-muted small">
+                                                {% for owner in p.owners %}
+                                                    {{ owner.display_name or owner.username }}{% if not loop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    {% endif %}
+                                    <span class="status-badge 
+                                        {% if p.status == 'Close' %}status-close
+                                        {% elif p.status == 'Completed' %}status-completed
+                                        {% elif p.status == 'In Progress' %}status-in-progress
+                                        {% elif p.status == 'On Hold' %}status-on-hold
+                                        {% elif p.status and (p.status.startswith('Quotation') or p.status.startswith('Quoting')) %}status-quotation
+                                        {% else %}status-new{% endif %}">
+                        <i class="fas fa-circle" style="font-size: 6px;"></i>
+                        {% if p.status and (p.status.startswith('Quotation') or p.status.startswith('Quoting')) %}
+                            {{ t('status_Quotation') }}
+                        {% else %}
+                            {{ t('status_' ~ p.status.replace(' ', '_')) }}
+                        {% endif %}
+                    </span>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Code -->
+                        <td class="text-nowrap">
+                            <span class="badge bg-light text-dark border" style="font-size: 0.875rem;">{{ p|format_code }}</span>
+                        </td>
+
+                        <!-- Client -->
+                        <td class="text-nowrap">
+                            {% if p.client %}
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-building text-muted me-2 small"></i>
+                                    <span class="small fw-bold text-secondary">{{ p.client.symbol }}</span>
+                                </div>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Deadline -->
+                        <td class="text-nowrap">
+                            {% if p.deadline %}
+                                {% if p.status not in ['Completed', 'Close'] and p.deadline < today %}
+                                    <span class="text-danger fw-bold small"><i class="fas fa-exclamation-triangle me-1"></i>{{ p.deadline.strftime('%b %d, %y') }}</span>
+                                {% elif p.status not in ['Completed', 'Close'] and (p.deadline - today).days <= 7 %}
+                                    <span class="text-warning fw-bold small"><i class="fas fa-clock me-1"></i>{{ p.deadline.strftime('%b %d, %y') }}</span>
+                                {% else %}
+                                    <span class="text-muted small">{{ p.deadline.strftime('%b %d, %y') }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Progress -->
+                        <td style="width: 300px;">
+                            {% if status_filter == 'Quotation' %}
+                                {% set prog_label = '' %}
+                                {% set p_class = '' %}
+                                {% if p.status == 'Quotation' or p.status == 'Quotation - Not Started' %}
+                                    {% set prog_label = t('quotation_not_started') %}
+                                    {% set p_class = 'progress-not-started' %}
+                                {% elif p.status == 'Quotation - In Progress' or p.status == 'Quoting In Progress' %}
+                                    {% set prog_label = t('quotation_doing') %}
+                                    {% set p_class = 'progress-doing' %}
+                                {% elif p.status == 'Quotation - Quote Sent' %}
+                                    {% set prog_label = 'Quote Sent' %}
+                                    {% set p_class = 'progress-quote-sent' %}
+                                {% elif p.status == 'Quotation - Submitted' %}
+                                    {% set prog_label = t('quotation_submitted') %}
+                                    {% set p_class = 'progress-submitted' %}
+                                {% elif p.status == 'Quotation - Won' or (not p.status.startswith('Quotation') and not p.status.startswith('Quoting')) %}
+                                    {% set prog_label = t('quotation_won') %}
+                                    {% set p_class = 'progress-won' %}
+                                {% else %}
+                                    {% set prog_label = t('quotation_not_started') %}
+                                    {% set p_class = 'progress-not-started' %}
+                                {% endif %}
+                                {% if prog_label %}
+                                    <span class="progress-badge {{ p_class }}">{{ prog_label }}</span>
+                                {% endif %}
+                            {% else %}
+                            <div class="d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                        {% set bar_class = '' %}
+                                        {% if p.status == 'Close' %}
+                                            {% set bar_class = 'bg-primary' %}
+                                        {% elif p.status == 'Completed' %}
+                                            {% set bar_class = 'bg-success' %}
+                                        {% elif p.status == 'On Hold' %}
+                                            {% set bar_class = 'bg-warning' %}
+                                        {% elif p.status == 'In Progress' %}
+                                            {% set bar_class = 'bg-primary' %}
+                                        {% else %}
+                                            {% set bar_class = 'bg-secondary' %}
+                                        {% endif %}
+                                        
+                                        {% set bar_bg = '#64748b' %}
+                                        {% if p.status == 'Close' %}
+                                            {% set bar_bg = '#00405d' %}
+                                        {% elif p.status == 'Completed' %}
+                                            {% set bar_bg = 'var(--app-dark-success)' %}
+                                        {% elif p.status == 'On Hold' %}
+                                            {% set bar_bg = '#f59e0b' %}
+                                        {% elif p.status == 'In Progress' %}
+                                            {% set bar_bg = '#04038d' %}
+                                        {% endif %}
+
+                                        <div class="progress-bar {{ bar_class }}" 
+                                             role="progressbar" style="width: {{ p.progress }}%; background-color: {{ bar_bg }};"></div>
+                                    </div>
+                                    <span class="small fw-bold">{{ p.progress }}%</span>
+                                </div>
+                                <small class="text-muted" style="font-size: 0.7rem;">{{ p.display_latest_update_date.strftime('%b %d, %y') if p.display_latest_update_date else '' }}</small>
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Last Update -->
+                        {% if status_filter != 'Quotation' %}
+                        <td class="text-nowrap">
+                            <div class="d-flex flex-column" style="max-width: 240px;">
+                                <span class="text-muted small text-wrap" style="line-height: 1.2;">{{ p.last_update_detail or '—' }}</span>
+                            </div>
+                        </td>
+                        {% endif %}
+
+                        <!-- Actions -->
+                        <td class="text-end">
+                            <div class="dropdown">
+                                <button class="action-btn" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v action-icon"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                    <li><h6 class="dropdown-header text-uppercase small fw-bold">{{ t('col_actions') }}</h6></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('projects.project_detail', project_id=p.id) }}"><i class="fas fa-eye me-2 text-primary"></i>{{ t('btn_view_details') }}</a></li>
+                                    {% if current_user.role in ['admin','manager','leader'] or (current_user.role == 'secretary' and (status_filter == 'Quotation' or (p.status and (p.status.startswith('Quotation') or p.status.startswith('Quoting'))))) %}
+                                    <li><a class="dropdown-item" href="{{ url_for('projects.edit_project', project_id=p.id) }}"><i class="fas fa-edit me-2 text-warning"></i>{{ t('btn_edit') }}</a></li>
+                                    {% endif %}
+                                    {% if current_user.role in ['admin','manager'] %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form method="POST" action="{{ url_for('projects.delete_project', project_id=p.id) }}" data-confirm="{{ t('confirm_delete') }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="dropdown-item text-danger"><i class="fas fa-trash-alt me-2"></i>{{ t('btn_delete') }}</button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center p-3 bg-white border-top">
+            <div class="small text-muted">
+                {{ t('pagination_showing') }} <strong>{{ pagination.page }}</strong> {{ t('pagination_of') }} <strong>{{ pagination.pages }}</strong>
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('projects.list', page=pagination.prev_num, q=q, status=status_filter, project_type=project_type) }}"><i class="fas fa-chevron-left"></i></a>
+                    </li>
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+                        {% if page_num %}
+                            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('projects.list', page=page_num, q=q, status=status_filter, project_type=project_type) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('projects.list', page=pagination.next_num, q=q, status=status_filter, project_type=project_type) }}"><i class="fas fa-chevron-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const projectCheckboxes = Array.from(document.querySelectorAll('.project-check'));
+
+        function updateSelectAllUI() {
+            if (!selectAllCheckbox) return;
+            const checkedCount = projectCheckboxes.filter(cb => cb.checked).length;
+            selectAllCheckbox.checked = projectCheckboxes.length > 0 && checkedCount === projectCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < projectCheckboxes.length;
+        }
+
+        if (selectAllCheckbox && projectCheckboxes.length > 0) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const shouldCheck = this.checked;
+                projectCheckboxes.forEach(cb => { cb.checked = shouldCheck; });
+                updateSelectAllUI();
+            });
+
+            projectCheckboxes.forEach(cb => {
+                cb.addEventListener('change', updateSelectAllUI);
+            });
+
+            updateSelectAllUI();
+        }
+
+        const printSelectedBtn = document.getElementById('printSelectedBtn');
+        if (printSelectedBtn) {
+            printSelectedBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                const selectedCheckboxes = document.querySelectorAll('.project-check:checked');
+                if (selectedCheckboxes.length === 0) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast("{{ t('err_no_project_selected') }}", 'warning');
+                    } else {
+                        alert("{{ t('err_no_project_selected') }}");
+                    }
+                    return;
+                }
+
+                const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = "{{ url_for('export.print_selected_projects_details') }}";
+                form.target = '_blank';
+
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = "{{ csrf_token() }}";
+                form.appendChild(csrfInput);
+
+                const idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'ids';
+                idsInput.value = JSON.stringify(ids);
+                form.appendChild(idsInput);
+
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            });
+        }
+    });
+</script>
+
+{% endblock %}

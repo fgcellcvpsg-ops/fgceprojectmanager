@@ -1,0 +1,226 @@
+<div id="question-list-{{ source|default('default') }}">
+    {% if questions %}
+        <div class="d-flex flex-column gap-2">
+        {% for project_group in questions|groupby('project_id') %}
+            {% set project_questions = project_group.list %}
+            {% set p = project_questions[0].project %}
+            
+            <div class="card border shadow-sm rounded-3 overflow-hidden">
+                <!-- Project Header -->
+                {% if show_project_name %}
+                <div class="card-header bg-light py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                    {% if p %}
+                     <a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="fw-bold text-decoration-none text-dark d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                        <i class="fas fa-folder text-primary"></i> {{ p.name|project_title }}
+                    </a>
+                    {% else %}
+                    <span class="fw-bold text-muted d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                        <i class="fas fa-exclamation-triangle text-warning"></i> {{ t('unknown')|default('Unknown Project') }}
+                    </span>
+                    {% endif %}
+                    <span class="badge bg-white text-secondary border rounded-pill">{{ project_questions|length }}</span>
+                </div>
+                {% endif %}
+                
+                <div class="card-body p-0" id="questions-container-{{ p.id }}">
+                    {% for q in project_questions %}
+                        {% set is_answered = q.answer is not none %}
+                         <div class="question-item p-2 {% if not loop.last %}border-bottom{% endif %} {% if not is_answered %}bg-white{% else %}bg-light bg-opacity-25{% endif %}"
+                              style="{% if source == 'project_detail' and loop.index0 >= 2 %}display: none;{% endif %}">
+                            <!-- User Info & Status -->
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.75rem; flex-shrink: 0;">
+                                        {{ (q.created_by.display_name or q.created_by.username)[0] | upper if q.created_by else '?' }}
+                                    </div>
+                                    <div class="d-flex flex-column" style="line-height: 1.1;">
+                                        <span class="fw-bold text-dark" style="font-size: 0.8rem;">
+                                            {{ q.created_by.display_name or q.created_by.username if q.created_by else t('unknown') }}
+                                        </span>
+                                        <span class="text-muted" style="font-size: 0.7rem;">
+                                            {{ q.created_at.strftime('%H:%M %d/%m') }}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex align-items-center gap-1">
+                                    {% if is_answered %}
+                                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-0" style="font-size: 0.65rem;">
+                                            <i class="fas fa-check me-1"></i>{{ t('badge_answered') }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2 py-0" style="font-size: 0.65rem;">
+                                            {{ t('badge_unanswered') }}
+                                        </span>
+                                    {% endif %}
+                                    
+                                    <!-- Delete Question (Admin) -->
+                                    {% if current_user.role == 'admin' %}
+                                        <form method="POST" action="{{ url_for('projects.delete_question', question_id=q.id) }}" 
+                                              hx-post="{{ url_for('projects.delete_question', question_id=q.id) }}" 
+                                              hx-target="#question-list-{{ source|default('default') }}" 
+                                              hx-confirm="{{ t('confirm_delete_question')|default('Are you sure you want to delete this question?') }}"
+                                              class="d-inline">
+                                            <input type="hidden" name="source" value="{{ source }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-link text-danger p-0 ms-1" title="{{ t('btn_delete') }}">
+                                                <i class="fas fa-trash-alt" style="font-size: 0.8rem;"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Question Content -->
+                            <div class="ms-1 me-1 mt-1">
+                                <p class="mb-0 {% if not is_answered %}text-danger{% else %}text-dark{% endif %}" style="font-size: 0.85rem; white-space: pre-wrap; display: inline;">{{ q.question }}</p>
+                                
+                                {% set creator_role_level = q.created_by.role_level if q.created_by else 0 %}
+                                {% set can_reply = (current_user.id|int != q.created_by_id|int) and ((current_user.role_level >= 4) or (current_user.role_level > creator_role_level)) %}
+                                
+                                {% if not is_answered and can_reply %}
+                                    <a href="#" class="text-primary fw-bold ms-1 text-decoration-none" 
+                                       data-bs-toggle="collapse" 
+                                       data-bs-target="#replyForm-{{ source|default('default') }}-{{ q.id }}"
+                                       aria-expanded="false" 
+                                       aria-controls="replyForm-{{ source|default('default') }}-{{ q.id }}"
+                                       style="font-size: 0.85rem;">
+                                        {{ t('btn_reply') }}
+                                    </a>
+                                {% endif %}
+                            </div>
+
+                            <!-- Answer Section -->
+                            {% if is_answered %}
+                                <div class="ms-3 mt-1 ps-2 border-start border-2 border-success">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fw-bold text-success" style="font-size: 0.8rem;">
+                                                <i class="fas fa-reply me-1"></i>
+                                                {{ q.answered_by.display_name or q.answered_by.username if q.answered_by else t('unknown') }}
+                                            </span>
+                                            <span class="text-muted" style="font-size: 0.7rem;">• {{ q.answered_at.strftime('%H:%M %d/%m') }}</span>
+                                        </div>
+                                        
+                                        <!-- Edit/Delete Answer (Admin, Manager, Leader) -->
+                                        {% if current_user.role in ['admin', 'manager', 'leader'] %}
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-link text-primary p-0" 
+                                                    style="font-size: 0.75rem;"
+                                                    title="{{ t('btn_edit') }}"
+                                                    onclick="document.getElementById('editAnswerForm-{{ q.id }}').classList.remove('d-none'); document.getElementById('answerContent-{{ q.id }}').classList.add('d-none');">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <form method="POST" action="{{ url_for('projects.delete_answer', question_id=q.id) }}"
+                                                  hx-post="{{ url_for('projects.delete_answer', question_id=q.id) }}"
+                                                  hx-target="#question-list-{{ source|default('default') }}"
+                                                  hx-confirm="{{ t('confirm_delete_answer')|default('Are you sure you want to delete this answer?') }}"
+                                                  class="d-inline">
+                                                  <input type="hidden" name="source" value="{{ source }}">
+                                                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                  <button type="submit" class="btn btn-link text-danger p-0" style="font-size: 0.75rem;" title="{{ t('btn_delete') }}">
+                                                    <i class="fas fa-trash"></i>
+                                                  </button>
+                                            </form>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div id="answerContent-{{ q.id }}">
+                                        <p class="mb-0 text-dark" style="font-size: 0.85rem; white-space: pre-wrap;">{{ q.answer }}</p>
+                                    </div>
+
+                                    <!-- Edit Answer Form -->
+                                    <div id="editAnswerForm-{{ q.id }}" class="d-none mt-2">
+                                        <form method="POST" action="{{ url_for('projects.edit_answer', question_id=q.id) }}"
+                                              hx-post="{{ url_for('projects.edit_answer', question_id=q.id) }}"
+                                              hx-target="#question-list-{{ source|default('default') }}">
+                                            <input type="hidden" name="source" value="{{ source }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <div class="mb-2">
+                                                <textarea class="form-control form-control-sm" name="answer" rows="2" required>{{ q.answer }}</textarea>
+                                            </div>
+                                            <div class="text-end">
+                                                <button type="button" class="btn btn-sm btn-secondary me-1" 
+                                                        style="font-size: 0.75rem;"
+                                                        onclick="document.getElementById('editAnswerForm-{{ q.id }}').classList.add('d-none'); document.getElementById('answerContent-{{ q.id }}').classList.remove('d-none');">
+                                                    {{ t('btn_cancel') }}
+                                                </button>
+                                                <button type="submit" class="btn btn-sm btn-primary" style="font-size: 0.75rem;">
+                                                    <i class="fas fa-save me-1"></i>{{ t('btn_save') }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- Actions -->
+                            <div class="d-flex justify-content-end gap-2 mt-2 align-items-center">
+                            </div>
+
+                            {% if not is_answered and can_reply %}
+                            <div class="collapse mt-2" id="replyForm-{{ source|default('default') }}-{{ q.id }}">
+                                <div class="bg-light rounded-2 p-2">
+                                    <form method="POST" action="{{ url_for('projects.answer_question', question_id=q.id) }}" hx-post="{{ url_for('projects.answer_question', question_id=q.id) }}" hx-target="#question-list-{{ source|default('default') }}" hx-swap="outerHTML">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="source" value="{{ source or 'project_detail' }}">
+                                        <div class="mb-2">
+                                            <textarea class="form-control form-control-sm" name="answer" rows="2" required placeholder="{{ t('label_answer_content') }}"></textarea>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="button" class="btn btn-sm btn-secondary me-1" data-bs-toggle="collapse" data-bs-target="#replyForm-{{ source|default('default') }}-{{ q.id }}" style="font-size: 0.75rem;">{{ t('btn_cancel') }}</button>
+                                            <button type="submit" class="btn btn-sm btn-primary" style="font-size: 0.75rem;">
+                                                <i class="fas fa-paper-plane me-1"></i>{{ t('btn_send_answer') }}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endif %}
+                         </div>
+                    {% endfor %}
+                    
+                    <!-- Show More/Less Button -->
+                    {% if source == 'project_detail' and project_questions|length > 2 %}
+                    <div class="text-center p-1 bg-light border-top">
+                        <button class="btn btn-link btn-sm text-decoration-none p-0 fw-bold" 
+                                onclick="toggleQuestions(this, 'questions-container-{{ p.id }}')"
+                                style="font-size: 0.8rem;">
+                            {{ t('btn_show_more')|default('Show all') }} ({{ project_questions|length - 2 }})
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+        </div>
+        
+        {% if source == 'project_detail' %}
+        <script>
+            function toggleQuestions(btn, containerId) {
+                const container = document.getElementById(containerId);
+                const items = container.querySelectorAll('.question-item');
+                const isExpanded = btn.getAttribute('data-expanded') === 'true';
+                
+                items.forEach((item, index) => {
+                    if (index >= 2) {
+                        item.style.display = isExpanded ? 'none' : 'block';
+                    }
+                });
+                
+                if (isExpanded) {
+                    btn.innerText = "{{ t('btn_show_more')|default('Show all') }} (" + (items.length - 2) + ")";
+                    btn.setAttribute('data-expanded', 'false');
+                } else {
+                    btn.innerText = "{{ t('btn_show_less')|default('Show less') }}";
+                    btn.setAttribute('data-expanded', 'true');
+                }
+            }
+        </script>
+        {% endif %}
+
+    {% else %}
+        <div class="text-center py-5 text-muted small">{{ t('no_questions') }}</div>
+    {% endif %}
+</div>

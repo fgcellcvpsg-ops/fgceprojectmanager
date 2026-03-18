@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('title_add_client') if not client else t('title_edit_client') }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4 fade-in" style="max-width: 700px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-title">
+      {% if not client %}
+        <i class="fas fa-user-plus me-2 text-primary"></i>{{ t('title_add_client') }}
+      {% else %}
+        <i class="fas fa-user-edit me-2 text-warning"></i>{{ t('title_edit_client') }}
+      {% endif %}
+    </h1>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-header bg-light py-3">
+      <div class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>
+        {{ t('msg_fill_info_add_client') if not client else t('msg_fill_info_edit_client') }}
+      </div>
+    </div>
+    <div class="card-body p-4">
+      <form method="POST" action="{{ url_for('clients.add_client') if not client else url_for('clients.edit_client', client_id=client.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="row g-4">
+          <!-- SECTION 1: IDENTITY -->
+          <div class="col-12">
+            <h6 class="form-section-title">{{ t('section_identity') }}</h6>
+            
+            <!-- Client Name -->
+            <div class="mb-3">
+              <label for="name" class="form-label fw-bold">{{ t('col_client_name') }} <span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-lg" id="name" name="name" 
+                     value="{{ client.name if client else '' }}" 
+                     placeholder="{{ t('placeholder_client_name') }}" required>
+              <div class="form-text small text-muted">
+                <i class="bi bi-magic me-1"></i>{{ t('msg_auto_title_case') }}
+              </div>
+            </div>
+
+            <!-- Client Symbol -->
+            <div class="mb-3">
+              <label for="symbol" class="form-label fw-bold">{{ t('col_symbol') }} <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="symbol" name="symbol" 
+                     value="{{ client.symbol if client else '' }}" 
+                     placeholder="{{ t('placeholder_client_symbol') }}" required>
+              <div class="form-text small">
+                {{ t('msg_auto_uppercase') }}
+              </div>
+            </div>
+
+            <!-- Client Color -->
+            <div class="mb-3">
+              <label for="color" class="form-label fw-bold">{{ t('col_color') }}</label>
+              <input type="color" class="form-control form-control-color" id="color" name="color" 
+                     value="{{ client.color if client and client.color else '#000000' }}" 
+                     title="{{ t('title_choose_color') }}">
+            </div>
+          </div>
+
+          <!-- SECTION 2: ADDITIONAL INFO -->
+          <div class="col-12">
+            <h6 class="form-section-title">{{ t('label_note') }}</h6>
+            <textarea class="form-control" id="note" name="note" rows="4" 
+                      placeholder="{{ t('placeholder_note') }}">{{ client.note if client else '' }}</textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+            <a href="{{ url_for('clients.list_clients') }}" class="btn btn-light border">
+              <i class="bi bi-x-lg me-1"></i>{{ t('btn_cancel') }}
+            </a>
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-save me-1"></i>{{ t('btn_save') }}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/client_form.js') }}"></script>
+{% endblock %}

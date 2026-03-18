@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ page_title }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
+        
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #ccc; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { 
+            background-color: #f0f0f0; 
+            color: #04038d; 
+            font-weight: bold; 
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+        
+        /* Header Styles */
+        .report-header {
+            width: 100%;
+            border-bottom: 2px solid #04038d;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        .report-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #04038d;
+            text-transform: uppercase;
+            text-align: center;
+        }
+        .report-meta {
+            text-align: right;
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Summary Box */
+        .summary-box {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .summary-box h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            color: #04038d;
+            font-size: 14px;
+        }
+        
+        /* Print Styles */
+        @media print {
+            @page { size: landscape; margin: 15mm; }
+            .no-print { display: none !important; }
+            body { margin: 0; padding: 0; }
+            .report-container {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+            }
+        }
+
+        /* Screen Preview Styles */
+        @media screen {
+            body { background-color: #525659; margin: 0; }
+            .report-container {
+                background-color: white;
+                width: 297mm; /* Landscape A4 */
+                min-height: 210mm;
+                margin: 30px auto;
+                padding: 15mm;
+                box-shadow: 0 0 15px rgba(0,0,0,0.5);
+                box-sizing: border-box;
+            }
+            .toolbar {
+                background-color: #f8f9fa;
+                padding: 10px 20px;
+                border-bottom: 1px solid #dee2e6;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .btn {
+                display: inline-block;
+                padding: 6px 12px;
+                font-size: 13px;
+                font-weight: 600;
+                text-align: center;
+                text-decoration: none;
+                border-radius: 4px;
+                cursor: pointer;
+                border: 1px solid transparent;
+                transition: all 0.2s;
+            }
+            .btn-primary { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+            .btn-primary:hover { background-color: #0b5ed7; border-color: #0a58ca; }
+            .btn-secondary { background-color: #6c757d; color: white; border-color: #6c757d; }
+            .btn-secondary:hover { background-color: #5c636a; border-color: #565e64; }
+        }
+        
+        /* Watermark */
+        body::before {
+            content: "FG Consulting Engineers";
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 60px;
+            color: rgba(4, 3, 141, 0.05);
+            z-index: 0;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .content-layer {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div class="toolbar no-print">
+        <div>
+            <span style="font-weight: bold; color: #333;">Print Preview</span>
+        </div>
+        <div>
+            <button onclick="window.print()" class="btn btn-primary">🖨️ Print Now</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary" style="margin-left: 10px;">Close</a>
+        </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="report-container">
+        <div class="content-layer">
+            <div class="report-header">
+                <table style="border: none; margin: 0; width: 100%;">
+                    <tr>
+                        <td style="border: none; width: 100px; padding-right: 20px;">
+                            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 60px;">
+                        </td>
+                        <td style="border: none; vertical-align: middle; padding: 0;">
+                            <div class="report-title" style="text-align: left;">PROJECT LIST</div>
+                        </td>
+                        <td style="border: none; width: 30%; text-align: right; vertical-align: middle; padding: 0;">
+                            <div class="report-meta">
+                                <strong>Date:</strong><br>
+                                {{ current_time }}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            {% set total = projects|length %}
+            {% set completed = (projects|selectattr('status','equalto','Completed')|list)|length %}
+            {% set in_progress = (projects|selectattr('status','equalto','In Progress')|list)|length %}
+            {% set new_projects = (projects|selectattr('status','equalto','New')|list)|length %}
+            {% set on_hold = (projects|selectattr('status','equalto','On Hold')|list)|length %}
+            {% set closed_count = (projects|selectattr('status','equalto','Close')|list)|length %}
+            {% set avg_progress = ((projects|map(attribute='progress')|sum) / (total or 1))|round(1) %}
+
+            <div class="summary-box">
+                <h3>Overview</h3>
+                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                    <div style="flex: 1; padding-right: 20px; border-right: 1px solid #ddd;">
+                        <div style="margin-bottom: 6px;">
+                            <strong>Total Projects:</strong> {{ total }}
+                        </div>
+                        <div style="margin-bottom: 6px;">
+                            <strong>Average Progress:</strong> {{ avg_progress }}%
+                        </div>
+                    </div>
+                    <div style="flex: 1; padding-left: 20px;">
+                        <div style="display: flex; flex-wrap: wrap; justify-content: space-between;">
+                            {# Row 1 #}
+                            <div style="width: 48%; margin-bottom: 4px;">
+                                <strong>New:</strong> {{ new_projects }}
+                            </div>
+                            <div style="width: 48%; margin-bottom: 4px;">
+                                <strong>In Progress:</strong> {{ in_progress }}
+                            </div>
+                            
+                            {# Row 2 #}
+                            <div style="width: 48%; margin-bottom: 4px;">
+                                <strong>On Hold:</strong> {{ on_hold }}
+                            </div>
+                            <div style="width: 48%; margin-bottom: 4px;">
+                                <strong>Completed:</strong> {{ completed }}
+                            </div>
+                            
+                             {# Row 3 #}
+                            <div style="width: 48%; margin-bottom: 4px;">
+                                <strong>Close:</strong> {{ closed_count }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px; text-align: center;">No.</th>
+                        <th style="width: 250px;">Project Name</th>
+                        <th style="width: 70px;">Code</th>
+                        <th style="width: 60px;">Client</th>
+                        <th style="width: 50px; text-align: center;">%</th>
+                        <th style="width: 70px;">Deadline</th>
+                        <th>Latest Update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in projects %}
+                    <tr>
+                        <td style="text-align: center;">{{ loop.index }}</td>
+                        <td>
+                            <strong>{{ p.name|project_title }}</strong>
+                            <div style="font-size: 11px; color: #555; margin-top: 2px;">
+                                {% if p.owners %}
+                                    {% for owner in p.owners %}
+                                        <span>{{ owner.display_name or owner.username }}</span>{{ ", " if not loop.last else "" }}
+                                    {% endfor %}
+                                {% elif p.owner %}
+                                    <span>{{ p.owner.display_name or p.owner.username }}</span>
+                                {% else %}
+                                    <span style="font-style: italic;">Unassigned</span>
+                                {% endif %}
+                                - 
+                                <span style="color: {% if p.status == 'New' %}#cbd5e1{% elif p.status == 'In Progress' %}#04038d{% elif p.status == 'On Hold' or p.status == 'Suspended' %}#f59e0b{% elif p.status == 'Completed' %}#10b981{% elif p.status == 'Close' %}#6c757d{% elif 'Quotation' in p.status or 'Quoting' in p.status %}#6f42c1{% else %}#333{% endif %}; font-weight: bold;">{{ p.status }}</span>
+                            </div>
+                        </td>
+                        <td>{{ p|format_code }}</td>
+                        <td>{{ p.client.symbol if p.client else '' }}</td>
+                        <td style="text-align: center;">
+                            {{ p.progress }}%
+                        </td>
+                        <td>{{ p.deadline|format_date }}</td>
+                        <td>
+                            <small style="color: #666; display: block; margin-bottom: 2px;">{{ p.latest_update_date|format_date }}</small>
+                            {% set latest_hist = p.history|sort(attribute='date', reverse=True)|first %}
+                            <div style="font-style: italic; color: #555;">{{ latest_hist.detail if latest_hist else '' }}</div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px;">No projects found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 30px; text-align: center; font-size: 10px; color: #999;">
+                FG Consulting Engineers Project Manager - Internal Use Only
+            </div>
+        </div>
+    </div>
+</body>
+</html>

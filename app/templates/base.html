@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta charset="UTF-8">
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
+  <title>{% block title %}FG Consulting Engineers{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=6">
+  <style>
+    :root {
+      --app-primary: #04038d;
+      --app-primary-dark: #020155;
+      --app-primary-light: #4b4aa5;
+      --app-secondary: #64748b;
+      --app-success: #10b981;
+      --app-dark-success: #059669;
+      --app-warning: #f59e0b;
+      --app-danger: #ef4444;
+      --app-info: #3b82f6;
+      --app-bg-body: #f1f5f9;
+      --app-bg-surface: #ffffff;
+      --app-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --app-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --app-shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --app-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --bs-primary: var(--app-primary);
+      --bs-body-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      --bs-body-bg: var(--app-bg-body);
+      --bs-body-color: #334155;
+      --brand-color: #04038d;
+      --brand-purple: #6f42c1;
+      --table-head-bg: #e2e8f0;
+      --table-head-color: #1e293b;
+      --table-border-color: #e2e8f0;
+    }
+
+    /* Enhanced Table Styles Global */
+    .table-card {
+        background: var(--app-bg-surface);
+        border-radius: 16px;
+        box-shadow: var(--app-shadow);
+        border: 1px solid var(--bs-border-color);
+        overflow: hidden;
+    }
+
+    .table thead th {
+        background: var(--table-head-bg);
+        font-weight: 800;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        color: var(--table-head-color);
+        padding: 0.6rem 0.75rem;
+        border-bottom: 2px solid var(--table-border-color);
+    }
+
+    .table tbody td {
+        padding: 0.35rem 0.75rem;
+        vertical-align: middle;
+        border-bottom: 1.5px solid var(--table-border-color);
+        font-size: 0.85rem;
+    }
+
+    .table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Filter Section Global */
+    .filter-section {
+        background: #f8fafc; /* Slightly darker than surface for contrast */
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: var(--app-shadow-sm);
+        margin-bottom: 2rem;
+        border: 1px solid var(--bs-border-color);
+        border-top: 4px solid var(--brand-color);
+    }
+
+    /* Custom Date Picker Icon Color */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(16%) sepia(87%) saturate(3994%) hue-rotate(226deg) brightness(85%) contrast(106%); /* Matches #04038d roughly */
+        cursor: pointer;
+    }
+    
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(61%) sepia(45%) saturate(1487%) hue-rotate(188deg) brightness(101%) contrast(97%); /* Matches #60a5fa roughly */
+    }
+    
+    [data-theme="dark"] .filter-section {
+        background: var(--app-bg-surface);
+        border: 1px solid #334155;
+    }
+    
+    [data-theme="dark"] {
+      --app-bg-body: #0f172a;
+      --app-bg-surface: #1e293b;
+      --bs-body-color: #f1f5f9;
+      --app-secondary: #cbd5e1;
+      --app-primary: #3b82f6;
+      --app-success: #34d399;
+      --app-dark-success: #059669;
+      --app-warning: #fbbf24;
+      --app-danger: #f87171;
+      --app-info: #60a5fa;
+      --app-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+      --app-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+      --brand-color: #60a5fa;
+      --brand-purple: #c084fc;
+      --table-head-bg: #334155;
+      --table-head-color: #f1f5f9;
+      --table-border-color: #334155;
+      --bs-body-bg: var(--app-bg-body);
+      --bs-border-color: #334155;
+      --bs-primary: var(--app-primary);
+    }
+
+    [data-theme="dark"] {
+      --bs-body-color: #ffffff !important; /* Force pure white text */
+    }
+
+    /* Navbar Styling */
+    .navbar-nav .nav-link {
+        color: var(--bs-body-color);
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    .navbar-nav .nav-link:hover {
+        color: var(--app-primary);
+    }
+
+    /* Dark Mode Utility Overrides */
+    [data-theme="dark"] .text-muted {
+        color: #94a3b8 !important; /* Slate 400 */
+    }
+    
+    [data-theme="dark"] .dropdown-menu {
+        background-color: var(--app-bg-surface);
+        border: 1px solid #475569; /* Brighter border for visibility */
+    }
+    
+    [data-theme="dark"] .bg-light {
+        background-color: #334155 !important; /* Slate 700 */
+        color: #f1f5f9;
+    }
+
+    [data-theme="dark"] .badge.bg-light.text-dark {
+        color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] .text-secondary {
+        color: #cbd5e1 !important; /* Slate 300 */
+    }
+    
+    [data-theme="dark"] .bg-white {
+        background-color: var(--app-bg-surface) !important;
+    }
+    
+    /* Removed duplicate .bg-light override */
+
+    [data-theme="dark"] .table {
+        --bs-table-color: var(--bs-body-color);
+        --bs-table-bg: transparent;
+        --bs-table-border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+    }
+    
+    [data-theme="dark"] .card {
+        background-color: var(--app-bg-surface);
+        border-color: var(--bs-border-color);
+    }
+
+    [data-theme="dark"] .list-group-item {
+        background-color: var(--app-bg-surface);
+        border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+    }
+    
+    [data-theme="dark"] .dropdown-menu {
+        background-color: var(--app-bg-surface);
+        border-color: var(--bs-border-color);
+    }
+    
+    [data-theme="dark"] .dropdown-item {
+        color: var(--bs-body-color);
+    }
+    
+    [data-theme="dark"] .dropdown-item:hover {
+        background-color: var(--app-bg-body);
+    }
+
+    [data-theme="dark"] .modal-content {
+        background-color: var(--app-bg-surface);
+        border-color: var(--bs-border-color);
+    }
+
+    [data-theme="dark"] .form-control, 
+    [data-theme="dark"] .form-select {
+        background-color: var(--app-bg-body);
+        border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+    }
+    
+    [data-theme="dark"] .form-control::placeholder {
+        color: var(--app-secondary);
+        opacity: 1;
+    }
+    
+    [data-theme="dark"] .form-control:focus, 
+    [data-theme="dark"] .form-select:focus {
+        background-color: var(--app-bg-body);
+        color: var(--bs-body-color);
+        border-color: var(--brand-color);
+        box-shadow: 0 0 0 0.25rem rgba(147, 197, 253, 0.25);
+    }
+    
+    [data-theme="dark"] body {
+        color: var(--bs-body-color);
+        background-color: var(--app-bg-body);
+    }
+
+    [data-theme="dark"] .navbar {
+        background-color: var(--app-bg-surface) !important;
+        border-bottom: 1px solid #334155;
+    }
+
+    [data-theme="dark"] .navbar-brand {
+        color: #60a5fa !important; /* Lighter blue for dark mode brand */
+    }
+
+    [data-theme="dark"] .card, 
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] .table-card {
+        background-color: var(--app-bg-surface) !important;
+        border-color: #334155 !important;
+    }
+
+    [data-theme="dark"] .form-control, 
+    [data-theme="dark"] .form-select {
+        background-color: #0f172a;
+        border-color: #334155;
+        color: #f1f5f9;
+    }
+    
+    [data-theme="dark"] .form-control:focus, 
+    [data-theme="dark"] .form-select:focus {
+        background-color: #0f172a;
+        color: #f1f5f9;
+    }
+
+    [data-theme="dark"] .dropdown-menu {
+        background-color: #1e293b;
+        border-color: #334155;
+    }
+    
+    [data-theme="dark"] .dropdown-item {
+        color: #f1f5f9;
+    }
+    
+    [data-theme="dark"] .dropdown-item:hover {
+        background-color: #334155;
+    }
+    
+    [data-theme="dark"] .table {
+        color: #f1f5f9;
+        border-color: #334155;
+    }
+    
+    [data-theme="dark"] .table thead th {
+        background-color: #0f172a !important;
+        color: #cbd5e1 !important;
+        border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] .table tbody td {
+        border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] .table-hover tbody tr:hover {
+        background-color: #334155 !important;
+        color: #fff;
+    }
+
+    [data-theme="dark"] .text-muted {
+        color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] .text-dark {
+        color: #f1f5f9 !important;
+    }
+
+    [data-theme="dark"] #themeToggle i.fa-sun {
+        color: #fbbf24 !important;
+    }
+
+    [data-theme="dark"] .bg-white {
+        background-color: #1e293b !important;
+    }
+
+    [data-theme="dark"] .list-group-item {
+        background-color: #1e293b;
+        border-color: #334155;
+        color: #f1f5f9;
+    }
+    
+    [data-theme="dark"] .list-group-item-action:hover {
+        background-color: #334155;
+    }
+
+    body { 
+        background-color: var(--app-bg-body); 
+        color: var(--bs-body-color);
+        font-family: var(--bs-body-font-family);
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
+    .navbar { 
+        background-color: var(--app-bg-surface) !important;
+        box-shadow: var(--app-shadow-sm) !important;
+        padding: 0 !important;
+        height: 60px;
+        position: sticky;
+        top: 0;
+        z-index: 1030;
+    }
+    
+    .navbar .container-fluid {
+        height: 100%;
+    }
+
+    .navbar-brand { 
+        font-weight: 700; 
+        color: #04038d !important; 
+        letter-spacing: -0.5px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 100%;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .navbar-brand img {
+        height: 95%;
+        width: auto;
+        object-fit: contain;
+    }
+    
+    /* Unified Page Title Style */
+    .page-title {
+        font-weight: 700;
+        color: var(--bs-body-color);
+        font-size: 1.75rem;
+        letter-spacing: -0.5px;
+    }
+    
+    .card {
+        border: none;
+        box-shadow: var(--app-shadow);
+        border-radius: 12px;
+        background: var(--app-bg-surface);
+    }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+    footer { 
+        margin-top: 40px; 
+        padding: 15px 0; 
+        border-top: 1px solid var(--bs-border-color, #dee2e6); 
+        text-align: center; 
+        color: var(--app-secondary); 
+        font-size: 13px; 
+        background-color: var(--app-bg-surface);
+        box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Toast styles (top-right) */
+    #toast-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1080;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-width: 360px;
+    }
+    .toast-custom {
+      min-width: 280px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      border-radius: 6px;
+      padding: 0.6rem 0.9rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.95rem;
+    }
+    .toast-success { background: var(--bs-success); }
+    .toast-warning { background: #d97706; color: #ffffff; } /* Dark Yellow as requested */
+    .toast-danger  { background: var(--bs-danger); }
+    .toast-info    { background: var(--bs-primary); }
+    .toast-close {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .btn-icon-fixed { width: 36px; min-width: 36px; display: inline-flex; align-items: center; justify-content: center; padding-left: 0; padding-right: 0; }
+    .form-control, .form-select { border-radius: 8px; border: 1px solid #dee2e6; padding: 0.5rem 0.75rem; font-size: 0.95rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--bs-primary); box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.15); }
+    .form-card { border: none; border-radius: 12px; box-shadow: var(--app-card-shadow); }
+    
+    /* Action Buttons Global */
+    .action-btn {
+      background: transparent;
+      border: none;
+      opacity: 0.6;
+      transition: opacity 0.2s, background-color 0.2s;
+      padding: 0.25rem;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    .action-btn:hover, .dropdown.show .action-btn {
+      opacity: 1;
+      background: rgba(0,0,0,0.05);
+      color: var(--app-primary);
+    }
+    [data-theme="dark"] .action-btn:hover, [data-theme="dark"] .dropdown.show .action-btn {
+       background: rgba(255,255,255,0.1);
+     }
+     [data-theme="dark"] .dropdown-menu {
+         background-color: var(--app-bg-surface);
+         border: 1px solid var(--bs-border-color);
+         box-shadow: var(--app-shadow-lg);
+     }
+     [data-theme="dark"] .dropdown-item {
+         color: var(--bs-body-color);
+     }
+     [data-theme="dark"] .dropdown-item:hover {
+         background-color: var(--bs-border-color);
+     }
+     .action-icon {
+       color: inherit;
+       font-weight: 900;
+     }
+
+    /* Pagination Slimmer Style */
+    .pagination {
+        --bs-pagination-padding-y: 0.25rem;
+        --bs-pagination-padding-x: 0.5rem;
+        --bs-pagination-font-size: 0.875rem;
+        margin-bottom: 0;
+    }
+    main { padding-bottom: 100px; }
+    .page-link {
+        border-radius: 4px;
+        margin: 0 2px;
+        border: 1px solid var(--bs-border-color);
+        color: var(--bs-body-color);
+        background: var(--app-bg-surface);
+        transition: all 0.2s;
+    }
+    .page-item.active .page-link {
+        background-color: var(--app-primary);
+        border-color: var(--app-primary);
+        color: white;
+    }
+    .page-link:hover {
+        background-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
+    }
+    [data-theme="dark"] .page-link:hover {
+        background-color: rgba(255,255,255,0.1);
+    }
+
+    /* Filter Label Global */
+    .filter-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--app-secondary);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+    }
+
+    /* FullCalendar Dark Mode Fixes */
+    [data-theme="dark"] .fc-theme-standard td, 
+    [data-theme="dark"] .fc-theme-standard th {
+        border-color: var(--bs-border-color);
+    }
+    [data-theme="dark"] .fc .fc-button-primary {
+        background-color: var(--app-bg-surface);
+        border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+    }
+    [data-theme="dark"] .fc .fc-button-primary:hover {
+        background-color: var(--bs-border-color);
+    }
+    [data-theme="dark"] .fc .fc-button-primary:not(:disabled).fc-button-active {
+        background-color: var(--app-primary);
+        color: white;
+        border-color: var(--app-primary);
+    }
+    [data-theme="dark"] .fc-toolbar-title {
+        color: var(--bs-body-color);
+    }
+    [data-theme="dark"] .fc-col-header-cell-cushion,
+    [data-theme="dark"] .fc-daygrid-day-number {
+        color: var(--bs-body-color);
+        text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+        FG Consulting Engineers
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          {% if current_user.is_authenticated %}
+            <li class="nav-item me-lg-3">
+              <span class="navbar-text fw-bold text-primary text-truncate" style="max-width: 260px;">
+                {{ t('greeting_hello') }}! {{ current_user.display_name or current_user.username }}.
+              </span>
+            </li>
+          {% endif %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="mainMenuDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              ☰ Menu
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="mainMenuDropdown">
+              {% if current_user.is_authenticated %}
+                <li><a class="dropdown-item" href="{{ url_for('clients.list_clients') }}">👥 {{ t('nav_clients') }}</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('projects.list') }}">📁 {{ t('nav_project_list') }}</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('projects.list', status='Quotation') }}">📜 {{ t('nav_quotation_list') }}</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('projects.calendar_view') }}">📅 {{ t('nav_calendar') }}</a></li>
+                {% if current_user.role in ['admin','manager'] %}
+                  <li><a class="dropdown-item" href="{{ url_for('admin.admin_users') }}">⚙️ {{ t('nav_admin_users') }}</a></li>
+                {% endif %}
+                {% if current_user.role == 'admin' %}
+                  <li><a class="dropdown-item" href="{{ url_for('admin.activity_report') }}">📋 {{ t('nav_activity_report') }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('admin.work_history_report') }}">🧾 {{ t('nav_work_history_report') }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('backup.list') }}">💾 {{ t('nav_backup') }}</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}">🔑 {{ t('nav_change_password') }}</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">🚪 {{ t('nav_logout') }}</a></li>
+              {% else %}
+                <li><a class="dropdown-item" href="{{ url_for('auth.login') }}">🔐 {{ t('nav_login') }}</a></li>
+              {% endif %}
+              {% if current_user.role == 'admin' %}
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">🌐 {{ t('nav_language') }}</h6></li>
+              <li><a class="dropdown-item" href="{{ url_for('main.set_lang', lang='vi') }}">{{ t('lang_vi') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('main.set_lang', lang='en') }}">{{ t('lang_en') }}</a></li>
+              {% endif %}
+            </ul>
+          </li>
+          {% if current_user.is_authenticated %}
+          <li class="nav-item ms-lg-2">
+            <button class="nav-link btn btn-link" id="themeToggle" title="{{ t('toggle_dark_mode') }}" style="color: var(--bs-body-color);">
+              <i class="fas fa-moon"></i>
+            </button>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <script type="application/json" id="flask-flash-data" nonce="{{ g.csp_nonce }}">{{ messages|tojson }}</script>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Nội dung chính -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    {{ t('footer_text') }}
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" nonce="{{ g.csp_nonce }}"></script>
+
+  <!-- Toast script (inline) with nonce -->
+  <script nonce="{{ g.csp_nonce }}">
+  (function() {
+    function createToast(message, category) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast-custom ' + (category === 'success' ? 'toast-success' :
+                                          category === 'warning' ? 'toast-warning' :
+                                          category === 'danger'  ? 'toast-danger'  : 'toast-info');
+      const text = document.createElement('div');
+      text.innerHTML = message;
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'toast-close';
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.innerHTML = '&times;';
+      closeBtn.onclick = () => { if (toast.parentNode) toast.parentNode.removeChild(toast); };
+      toast.appendChild(text);
+      toast.appendChild(closeBtn);
+      container.appendChild(toast);
+      setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 5000);
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const flashDataEl = document.getElementById('flask-flash-data');
+      if (!flashDataEl) return;
+      try {
+        const messages = JSON.parse(flashDataEl.textContent || '[]');
+        messages.forEach(([category, msg]) => createToast(msg, category));
+      } catch (e) { console.error('Không thể parse flash messages', e); }
+    });
+    window.showToast = function(message, category='info') { createToast(message, category); };
+  })();
+  </script>
+  <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body">
+          <p id="globalConfirmText"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_cancel_text') }}</button>
+          <button type="button" class="btn btn-danger" id="globalConfirmOk">{{ t('btn_delete') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script nonce="{{ g.csp_nonce }}">
+    document.addEventListener('DOMContentLoaded', function () {
+      var modalEl = document.getElementById('globalConfirmModal');
+      var okBtn = document.getElementById('globalConfirmOk');
+      var textEl = document.getElementById('globalConfirmText');
+      if (!modalEl || !okBtn || !textEl) return;
+      var bsModal = new bootstrap.Modal(modalEl);
+      var currentForm = null;
+      var currentMsg = '';
+      document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+          if (form.dataset.confirmBypass === 'true') return;
+          e.preventDefault();
+          currentForm = form;
+          currentMsg = form.getAttribute('data-confirm') || '';
+          textEl.textContent = currentMsg || '{{ t("confirm_delete") }}';
+          okBtn.textContent = (currentMsg || '').includes('?') ? (currentMsg.split('?')[0]) : okBtn.textContent;
+          bsModal.show();
+        });
+      });
+      okBtn.addEventListener('click', function () {
+        if (currentForm) {
+          currentForm.dataset.confirmBypass = 'true';
+          currentForm.requestSubmit ? currentForm.requestSubmit() : currentForm.submit();
+          currentForm.dataset.confirmBypass = '';
+        }
+        bsModal.hide();
+      });
+    });
+  </script>
+  <script nonce="{{ g.csp_nonce }}">
+    document.addEventListener('DOMContentLoaded', function () {
+      // Theme Toggle
+      const toggleBtn = document.getElementById('themeToggle');
+      const icon = toggleBtn.querySelector('i');
+      const html = document.documentElement;
+
+      function updateIcon(theme) {
+          if (theme === 'dark') {
+              icon.classList.remove('fa-moon');
+              icon.classList.add('fa-sun');
+          } else {
+              icon.classList.remove('fa-sun');
+              icon.classList.add('fa-moon');
+          }
+      }
+
+      // Init icon
+      updateIcon(html.getAttribute('data-theme'));
+
+      toggleBtn.addEventListener('click', function() {
+          const currentTheme = html.getAttribute('data-theme');
+          const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          
+          html.setAttribute('data-theme', newTheme);
+          html.setAttribute('data-bs-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
+          updateIcon(newTheme);
+      });
+    });
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

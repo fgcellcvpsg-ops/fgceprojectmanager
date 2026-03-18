@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ t('title_reports') }}{% endblock %}
+{% block content %}
+<div class="container mt-4 fade-in">
+  <h1 class="page-title"><i class="fas fa-chart-bar text-primary me-2"></i>{{ t('heading_reports_client_kpi') }}</h1>
+
+  <table class="table table-bordered table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>{{ t('report_client') }}</th>
+        <th>{{ t('report_total_projects') }}</th>
+        <th>{{ t('report_avg_progress') }}</th>
+        <th>{{ t('overdue') }}</th>
+        <th>Quotation</th>
+        <th>{{ t('status_New') }}</th>
+        <th>{{ t('status_In_Progress') }}</th>
+        <th>{{ t('status_On_Hold') }}</th>
+        <th>{{ t('status_Completed') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data %}
+      <tr>
+        <td>{{ row.client }}</td>
+        <td>{{ row.total }}</td>
+        <td>{{ row.avg_progress }}%</td>
+        <td>
+          {{ row.overdue }}
+          {% if row.overdue > 0 %}
+            <span class="badge bg-danger ms-1">⚠</span>
+          {% endif %}
+        </td>
+        <td>{{ row.status_counts['Quotation'] }}</td>
+        <td>{{ row.status_counts['New'] }}</td>
+        <td>{{ row.status_counts['In Progress'] }}</td>
+        <td>{{ row.status_counts.get('On Hold', 0) + row.status_counts.get('Suspended', 0) }}</td>
+        <td>{{ row.status_counts['Completed'] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted">{{ t('no_data') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

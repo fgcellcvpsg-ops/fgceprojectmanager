@@ -1,0 +1,829 @@
+{% extends "base.html" %}
+{% block title %}{{ t('page_project_detail_title') }}{% endblock %}
+{% block content %}
+<style>
+    /* Status Badges */
+    .status-badge {
+        padding: 0.25em 0.6em;
+        font-size: 75%;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .status-badge.status-close {
+        background-color: #795548;
+        color: #fff;
+    }
+
+    .status-badge.status-completed {
+        background-color: #198754;
+        color: #fff;
+    }
+
+    .status-badge.status-on-hold {
+        background-color: #f59e0b;
+        color: #000;
+    }
+
+    .status-badge.status-in-progress {
+        background-color: #04038d;
+        color: #fff;
+    }
+
+    .status-badge.status-quote-sent {
+        background-color: #480560;
+        color: #fff;
+    }
+
+    .status-badge.status-new {
+        background-color: #0dcaf0;
+        color: #000;
+    }
+
+    .bg-status-quote-sent {
+        background-color: #480560 !important;
+    }
+</style>
+<div class="container mt-4 fade-in">
+  <!-- Tiêu đề dự án -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="page-title">
+      <i class="fas fa-folder-open me-2 text-primary"></i>{{ project.name|project_title }}
+    </h1>
+    <div>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">↩️ {{ t('btn_back') }}</a>
+      <a href="{{ url_for('export.export_project_detail_html', project_id=project.id) }}" target="_blank" class="btn btn-outline-primary">📄 {{ t('btn_export_pdf') }}</a>
+      {% if current_user.role in ['admin','manager','leader'] or (current_user.role == 'secretary' and project.status and (project.status.startswith('Quotation') or project.status.startswith('Quoting'))) %}
+        <a href="{{ url_for('projects.edit_project', project_id=project.id) }}" class="btn btn-warning btn-icon-fixed" title="{{ t('btn_edit') }}">✏️</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Cột trái: thông tin dự án -->
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-bold">📑 {{ t('card_project_details') }}</div>
+        <div class="card-body">
+          <p><strong>{{ t('label_client') }}:</strong> {{ project.client.name if project.client else '—' }}</p>
+          <p><strong>{{ t('label_code') }}:</strong> {{ project|format_code }}</p>
+          <p><strong>{{ t('label_address') }}:</strong> {{ project.address or '—' }}</p>
+          <p><strong>{{ t('label_deadline') }}:</strong>
+            <span style="color:var(--app-danger); font-weight:700;"> {{ project.deadline.strftime('%b %d, %Y') if project.deadline else '—' }}</span>
+          <p>
+
+          <div class="row g-2 mb-2">
+            <div class="col-md-4">
+              <div class="small text-muted fw-bold">{{ t('label_time_est_short') }}</div>
+              <div class="fw-bold">
+                {% if effective_estimated_hours and effective_estimated_hours > 0 %}
+                  {{ '%.1f'|format(effective_estimated_hours) }} h
+                {% elif project.estimated_duration %}
+                  {{ project.estimated_duration }}
+                {% else %}
+                  0.0 h
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="small text-muted fw-bold">{{ t('label_time_spent_short') }}</div>
+              <div class="fw-bold">{{ '%.1f'|format(total_task_spent_hours or 0) }} h</div>
+            </div>
+            <div class="col-md-4">
+              <div class="small text-muted fw-bold">{{ t('label_time_remain_short') }}</div>
+              {% set remain_hours = (effective_estimated_hours or 0) - (total_task_spent_hours or 0) %}
+              <div class="fw-bold">
+                <span class="{% if remain_hours < 0 %}text-danger{% endif %}">{{ '%.1f'|format(remain_hours) }} h</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-2"><strong>{{ t('label_scope') }}:</strong><br>{{ project.scope or '—' }}</p>
+          <p class="mt-3 border-top pt-2"><strong>{{ t('label_source') }}:</strong>
+            {% if project.source %}
+              {{ project.source }}
+              <form action="{{ url_for('main.open_folder') }}" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="path" value="{{ project.source }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary ms-2 py-0 fw-bold" title="Open Folder">GO</button>
+              </form>
+            {% else %}—{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cột phải: cập nhật trạng thái -->
+    <div class="col-md-6">
+      <!-- Card: Status & Progress -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-bold">
+          <i class="fas fa-chart-line text-primary me-2"></i>{{ t('label_status_progress') }}
+        </div>
+        <div class="card-body">
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold">{{ t('label_current_status') }}</span>
+              {% set st = project.status or 'New' %}
+              <span class="status-badge
+                {% if st == 'Close' %}status-close
+                {% elif st in ['Completed'] %}status-completed
+                {% elif st in ['On Hold', 'Suspended'] %}status-on-hold
+                {% elif 'In Progress' in st %}status-in-progress
+                {% elif 'Quote Sent' in st %}status-quote-sent
+                {% else %}status-new{% endif %}">
+                {{ t('status_' ~ st|replace(' ','_')) }}
+              </span>
+            </div>
+            
+            <div class="mb-1 d-flex justify-content-between">
+               <span class="fw-bold">{{ t('label_current_progress') }}</span>
+               <span class="fw-bold text-primary">{{ project.progress }}%</span>
+            </div>
+            <div class="progress" style="height: 24px; border-radius: 12px;">
+                <div class="progress-bar
+                    {% if project.status == 'Close' %}bg-status-close
+                    {% elif project.status == 'Completed' %}bg-status-completed
+                    {% elif project.status == 'On Hold' %}bg-status-on-hold
+                    {% elif 'In Progress' in project.status %}bg-status-in-progress
+                    {% elif 'Quote Sent' in project.status %}bg-status-quote-sent
+                    {% else %}bg-status-default{% endif %}" 
+                     role="progressbar" 
+                     style="width: 0%;" 
+                     data-progress="{{ project.progress }}"
+                     aria-valuenow="{{ project.progress }}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+          </div>
+
+          {% if current_user.role in ['admin','manager','leader','member','secretary'] %}
+          <div class="d-grid">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
+              <i class="fas fa-edit me-2"></i>{{ t('btn_update_status_progress') }}
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Note Card -->
+      <div class="card shadow-sm mt-3" id="project-note">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center bg-transparent pt-3 pb-2">
+            <span class="fs-5"><i class="fas fa-sticky-note text-warning me-2"></i>{{ t('label_note') }}</span>
+            <button type="submit" form="noteForm" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
+                <i class="fas fa-save me-1"></i>{{ t('btn_save') }}
+            </button>
+        </div>
+        <div class="card-body">
+            <form id="noteForm" method="POST" action="{{ url_for('projects.update_note', project_id=project.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-0">
+                    <textarea name="note" class="form-control border-0 bg-light" rows="1" style="resize: vertical; min-height: 40px; max-height: 300px; overflow-y: auto;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="{{ t('placeholder_note') }}">{{ project.note or '' }}</textarea>
+                </div>
+            </form>
+        </div>
+      </div>
+
+      <!-- Question Card -->
+      <div class="card shadow-sm mt-3" id="question">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>❓ {{ t('label_question') }}</span>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addQuestionModal">➕ {{ t('btn_add_question') }}</button>
+        </div>
+        <div class="card-body">
+            {% with source='project_detail' %}
+            {% include 'partials/question_list.html' %}
+            {% endwith %}
+        </div>
+      </div>
+  </div>
+</div>
+
+<!-- Modal Update Status & Progress -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="updateStatusModalLabel">{{ t('btn_update_status_progress') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('projects.update_progress', project_id=project.id) }}">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ t('label_update_status_action') }}</label>
+            <select name="status" id="statusSelect" class="form-select">
+              {% if current_user.role != 'secretary' %}
+              <option value="" disabled selected hidden>{{ t('placeholder_update_status') }}</option>
+              {% endif %}
+              {% if project.status and project.status.startswith('Quotation') %}
+                <option value="Quotation - Not Started" {% if project.status == 'Quotation - Not Started' or project.status == 'Quotation' %}selected{% endif %}>{{ t('quotation_not_started') }}</option>
+                <option value="Quotation - In Progress" {% if project.status == 'Quotation - In Progress' %}selected{% endif %}>{{ t('quotation_doing') }}</option>
+                <option value="Quotation - Quote Sent" {% if project.status == 'Quotation - Quote Sent' %}selected{% endif %}>Quote Sent</option>
+                <option value="Quotation - Submitted" {% if project.status == 'Quotation - Submitted' %}selected{% endif %}>{{ t('quotation_submitted') }}</option>
+              {% else %}
+                {% if current_user.role == 'secretary' %}
+                    <!-- Secretary: Can keep current status (add note) or Close -->
+                    {% if project.status != 'Close' %}
+                         <option value="{{ project.status }}" selected>{{ t('status_' ~ project.status|replace(' ','_')) }}</option>
+                    {% endif %}
+                    <option value="Close" {% if project.status == 'Close' %}selected{% endif %}>{{ t('status_Close') }}</option>
+                {% else %}
+                    {% for s in ['New','In Progress','On Hold','Completed','Close'] %}
+                      <option value="{{ s }}">{{ t('status_' ~ s|replace(' ','_')) }}</option>
+                    {% endfor %}
+                {% endif %}
+              {% endif %}
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ t('label_update_progress_action') }}</label>
+            <select name="progress" id="progressSelect" class="form-select">
+                <option value="" disabled selected hidden>{{ t('placeholder_update_progress') }}</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ t('label_update_content') }} <span class="text-danger">*</span></label>
+            <textarea name="note" class="form-control" rows="4" placeholder="{{ t('placeholder_update_content') }}" required></textarea>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_close') or 'Đóng' }}</button>
+          <button type="submit" class="btn btn-primary">{{ t('btn_save_update') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+      <!-- Công việc -->
+<div class="card mt-4 shadow-sm border-0">
+  <div class="card-header fw-bold d-flex justify-content-between align-items-center bg-transparent pt-3 pb-2">
+        <span class="fs-5"><i class="fas fa-tasks text-success me-2"></i>{{ t('card_tasks_title') }}</span>
+        <div class="d-flex gap-2">
+            {% if current_user.role in ['admin','manager','leader','quotation'] %}
+            <a href="{{ url_for('tasks.create_task_page', project_id=project.id) }}" class="btn btn-sm btn-primary rounded-pill shadow-sm px-3">
+                <i class="fas fa-plus me-1"></i> {{ t('btn_add_task') }}
+            </a>
+            {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
+    <div class="table-card border-0 rounded-0 shadow-none project-tasks-card">
+    <div style="overflow: visible;">
+    <table class="table table-hover mb-0">
+      <thead class="bg-white sticky-top">
+        <tr>
+          <th>{{ t('task_name') }}</th>
+          <th style="width: 15%;">{{ t('assignee') }}</th>
+          <th style="width: 10%;">{{ t('status') }}</th>
+          <th style="width: 12%;">{{ t('col_due_date') }}</th>
+          <th style="width: 10%;">{{ t('col_time_est_spent') }}</th>
+          <th style="width: 50px;" class="text-end">{{ t('actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tk in tasks %}
+          <tr>
+            <td style="white-space: pre-wrap;">{{ tk.name }}</td>
+            <td>
+              {{ (tk.assignee.display_name or tk.assignee.username)|title if tk.assignee else t('unassigned') }}
+              {% if tk.status_updated_at %}
+                <br><small class="text-muted" style="font-size: 0.8em;">({{ tk.status_updated_at.strftime('%b %d, %y') }})</small>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+                {% set t_status = tk.status or 'New' %}
+                <span class="status-badge 
+                  {% if t_status in ['Done', 'Completed'] %}status-completed
+                  {% elif t_status in ['Doing', 'In Progress'] %}status-in-progress
+                  {% else %}status-new{% endif %}">
+                  {{ t('task_status_' ~ t_status) }}
+                </span>
+            </td>
+            <td>
+              {% if tk.deadline %}
+                  {% if tk.status != 'Completed' and tk.deadline < today %}
+                      <span class="text-danger fw-bold small"><i class="fas fa-exclamation-triangle me-1"></i>{{ tk.deadline.strftime('%b %d, %y') }}</span>
+                  {% elif tk.status != 'Completed' and (tk.deadline - today).days <= 7 %}
+                      <span class="text-warning fw-bold small"><i class="fas fa-clock me-1"></i>{{ tk.deadline.strftime('%b %d, %y') }}</span>
+                  {% else %}
+                      <span class="text-muted small">{{ tk.deadline.strftime('%b %d, %y') }}</span>
+                  {% endif %}
+              {% else %}
+                  <span class="text-muted small">{{ t('not_available') }}</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <span class="badge bg-light text-dark border">
+                {{ '%.1f'|format(tk.estimated_hours or 0) }} h
+              </span>
+            </td>
+            <td class="text-end">
+              {% if current_user.role in ['admin','manager','leader','secretary'] or (current_user.role == 'quotation' and (tk.assignee and tk.assignee.id == current_user.id)) or (current_user.role == 'member' and (tk.assignee and tk.assignee.id == current_user.id)) %}
+              <div class="dropdown task-actions-dropdown" data-task-id="{{ tk.id }}">
+                  <button class="action-btn task-actions-toggle" type="button">
+                      <i class="fas fa-ellipsis-v action-icon"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 task-actions-menu" data-task-id="{{ tk.id }}">
+                      <li><h6 class="dropdown-header text-uppercase small fw-bold">{{ t('col_actions') }}</h6></li>
+                      <li>
+                          <a href="{{ url_for('tasks.edit_task', project_id=project.id, task_id=tk.id) }}" class="dropdown-item text-warning">
+                              <i class="fas fa-pencil-alt me-2"></i>{{ t('btn_edit') }}
+                          </a>
+                      </li>
+                      <li>
+                          <form method="POST" action="{{ url_for('tasks.edit_task_status', project_id=project.id, task_id=tk.id) }}">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <div class="dropdown-item">
+                                  <div class="mb-1 small fw-bold">{{ t('label_update_status_action') }}</div>
+                                  <div class="d-flex align-items-center gap-2">
+                                      <select name="status" class="form-select form-select-sm" style="min-width: 150px;">
+                                          {% for s in ['New','Doing','Done'] %}
+                                            <option value="{{ s }}" {% if tk.status == s %}selected{% endif %}>{{ t('task_status_' ~ s) }}</option>
+                                          {% endfor %}
+                                      </select>
+                                      <button type="submit" class="btn btn-sm btn-primary ms-1">
+                                          <i class="fas fa-save"></i>
+                                      </button>
+                                  </div>
+                              </div>
+                          </form>
+                      </li>
+                      {% if current_user.role in ['admin','manager','leader'] or (current_user.role == 'quotation' and (tk.assignee and tk.assignee.id == current_user.id)) %}
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                          <form method="POST" action="{{ url_for('tasks.delete_task', project_id=project.id, task_id=tk.id) }}" data-confirm="{{ t('confirm_delete_task') }}">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <button type="submit" class="dropdown-item text-danger">
+                                  <i class="fas fa-trash-alt me-2"></i>{{ t('btn_delete') }}
+                              </button>
+                          </form>
+                      </li>
+                      {% endif %}
+                  </ul>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">{{ t('no_tasks') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Lịch sử cập nhật -->
+  <div class="card mt-4 shadow-sm" style="border-radius: 10px; border: 1px solid var(--bs-border-color);">
+    <div class="card-header fw-bold bg-transparent border-bottom-0 pt-3">
+        <span class="fs-5"><i class="fas fa-history text-warning me-2"></i>{{ t('history_title') }}</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive" style="max-height:50vh; overflow:auto; border:1px solid var(--bs-border-color); border-radius:6px; padding:0;">
+      <table class="table table-hover mb-0">
+        <thead class="table-light text-uppercase small fw-bold" style="letter-spacing: 0.5px;">
+          <tr>
+            <th style="width: 12%;">{{ t('history_time') }}</th>
+            <th style="width: 15%;">{{ t('history_updated_by') }}</th>
+            <th style="width: 12%;">{{ t('history_status') }}</th>
+            <th style="width: 12%;">{{ t('history_progress') }}</th>
+            <th>{{ t('history_detail') }}</th>
+            {% if current_user.role in ['admin','manager','quotation'] %}
+              <th style="width: 120px;" class="text-center">{{ t('actions') }}</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody style="color: #000;">
+          {% for h in history %}
+          <tr style="border-bottom: 1px solid #eee;">
+            <td class="fw-bold text-secondary">{{ h.date|format_date }}</td>
+            <td class="fw-bold">{{ h.updated_by or '—' }}</td>
+            <td class="text-nowrap">
+                <span class="badge bg-light text-dark border">{{ h.old_status }}</span> 
+                <i class="fas fa-arrow-right small text-muted mx-1"></i> 
+                <span class="badge bg-info text-dark bg-opacity-10 border border-info">{{ h.new_status }}</span>
+            </td>
+            <td class="text-nowrap">
+                <span class="text-muted">{{ h.old_progress }}%</span>
+                <i class="fas fa-arrow-right small text-muted mx-1"></i> 
+                <span class="fw-bold text-primary">{{ h.new_progress }}%</span>
+            </td>
+            <td class="text-dark">{{ h.detail }}</td>
+            {% if current_user.role in ['admin','manager','quotation'] %}
+            <td class="text-center">
+              <button type="button"
+                      class="btn btn-sm btn-outline-warning btn-icon-fixed rounded-circle shadow-sm edit-history-btn"
+                      title="{{ t('btn_edit') }}"
+                      style="width: 32px; height: 32px; padding: 0; line-height: 30px;"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editHistoryModal"
+                      data-history-id="{{ h.id }}"
+                      data-new-status="{{ h.new_status }}"
+                      data-new-progress="{{ h.new_progress }}"
+                      data-detail="{{ h.detail|e }}">
+                <i class="fas fa-pencil-alt"></i>
+              </button>
+              <form method="POST" action="{{ url_for('projects.delete_history', history_id=h.id) }}" style="display:inline;" data-confirm="{{ t('btn_delete') }}?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger btn-icon-fixed rounded-circle shadow-sm" title="{{ t('btn_delete') }}" style="width: 32px; height: 32px; padding: 0; line-height: 30px;"><i class="fas fa-trash"></i></button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">{{ t('no_update') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit History Modal -->
+<div class="modal fade" id="editHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" id="editHistoryForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ t('title_edit_history') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">{{ t('label_new_status') }}</label>
+            <select name="new_status" id="editHistoryStatus" class="form-select" required>
+              <option value="" disabled selected hidden>{{ t('placeholder_update_status') }}</option>
+              {% for s in ['New','In Progress','On Hold','Suspended','Completed','Close'] %}
+                <option value="{{ s }}">{{ t('status_' ~ s|replace(' ','_')) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ t('label_new_progress') }}</label>
+            <select name="new_progress" id="editHistoryProgress" class="form-select" required>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ t('label_detail') }}</label>
+            <textarea name="detail" class="form-control" rows="4"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_close') or 'Đóng' }}</button>
+          <button type="submit" class="btn btn-primary">{{ t('btn_save') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Add Question Modal -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form hx-post="{{ url_for('projects.add_question', project_id=project.id) }}" 
+            hx-target="#question-list-project_detail"
+            hx-swap="outerHTML"
+            hx-on::after-request="if(event.detail.successful) { this.reset(); bootstrap.Modal.getInstance(document.getElementById('addQuestionModal')).hide(); }">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="source" value="project_detail">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ t('title_add_question_modal') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">{{ t('label_question_content') }}</label>
+            <textarea name="question" class="form-control" rows="4" placeholder="{{ t('placeholder_question') }}" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('btn_close') or 'Đóng' }}</button>
+          <button type="submit" class="btn btn-primary">{{ t('btn_send_question') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="task-names-data" type="application/json">
+{{ tasks | map(attribute='name') | list | tojson }}
+</script>
+<script nonce="{{ g.csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+  const statusSelect = document.getElementById('statusSelect');
+  const progressSelect = document.getElementById('progressSelect');
+  const mainProgressBar = document.querySelector('.progress .progress-bar[data-progress]');
+
+  function setProgressOptions(status, currentProgress) {
+    if (!progressSelect) return;
+    
+    progressSelect.innerHTML = '';
+    progressSelect.disabled = false;
+
+    const addOption = (val) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = (val === 'stop') ? 'Stop' : (val + "%");
+      progressSelect.appendChild(opt);
+      return opt;
+    };
+
+    if (status === 'On Hold') {
+       const current = parseInt(currentProgress || "0", 10);
+       const opt = addOption(isNaN(current) ? 0 : current);
+       opt.selected = true;
+       progressSelect.disabled = true;
+       return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = "";
+    placeholder.textContent = "{{ t('placeholder_update_progress') }}";
+    placeholder.disabled = true;
+    placeholder.selected = true; 
+    progressSelect.appendChild(placeholder);
+
+    if (status === 'New' || status === 'Quotation - Not Started' || status === 'Quotation') {
+       addOption(0);
+    } else if (status === 'In Progress' || status === 'Quotation - In Progress') {
+       [30, 50, 75, 90].forEach(addOption);
+    } else if (status === 'Quotation - Quote Sent') {
+       [90, 100].forEach(addOption);
+    } else if (status === 'Completed' || status === 'Close') {
+       addOption(100);
+    } else if (status === 'Quotation - Submitted') {
+       addOption(100);
+    } else {
+       // Other
+       for (let i = 0; i <= 100; i += 5) addOption(i);
+    }
+  }
+
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      setProgressOptions(this.value, "{{ project.progress }}");
+    });
+    // On load
+    setProgressOptions(statusSelect.value || "{{ project.status }}", "{{ project.progress }}");
+  }
+
+  if (mainProgressBar) {
+    const val = mainProgressBar.getAttribute('data-progress');
+    if (val !== null && val !== '') {
+      mainProgressBar.style.width = String(val) + '%';
+    }
+  }
+
+  // Auto-numbering for Task Name
+  const taskNameInput = document.getElementById('taskNameInput');
+  
+  // Calculate next number based on existing tasks content (Max Number found + 1)
+
+  const editHistoryStatus = document.getElementById('editHistoryStatus');
+  const editHistoryProgress = document.getElementById('editHistoryProgress');
+
+  function setEditHistoryProgressOptions(status, currentProgress) {
+    if (!editHistoryProgress) return;
+    editHistoryProgress.innerHTML = '';
+    editHistoryProgress.disabled = false;
+
+    const addOption = (val) => {
+      const opt = document.createElement('option');
+      opt.value = String(val);
+      opt.textContent = val + "%";
+      editHistoryProgress.appendChild(opt);
+      return opt;
+    };
+
+    if (status === 'On Hold' || status === 'Suspended') {
+      const current = parseInt(currentProgress || "0", 10);
+      const opt = addOption(isNaN(current) ? 0 : current);
+      opt.selected = true;
+      editHistoryProgress.disabled = true;
+      return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = "";
+    placeholder.textContent = "{{ t('placeholder_update_progress') }}";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    editHistoryProgress.appendChild(placeholder);
+
+    if (status === 'New') {
+      addOption(0);
+    } else if (status === 'In Progress') {
+      [30, 50, 75, 90].forEach(addOption);
+    } else if (status === 'Completed' || status === 'Close') {
+      addOption(100);
+    } else {
+      for (let i = 0; i <= 100; i += 5) addOption(i);
+    }
+
+    if (currentProgress !== '' && currentProgress != null) {
+      const valueStr = String(currentProgress);
+      for (const opt of editHistoryProgress.options) {
+        if (opt.value === valueStr) {
+          opt.selected = true;
+          break;
+        }
+      }
+    }
+  }
+
+  const editHistoryModal = document.getElementById('editHistoryModal');
+  if (editHistoryModal) {
+    editHistoryModal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      if (!button) return;
+      const historyId = button.getAttribute('data-history-id');
+      const newStatus = button.getAttribute('data-new-status') || '';
+      const newProgress = button.getAttribute('data-new-progress') || '';
+      const detail = button.getAttribute('data-detail') || '';
+      const form = document.getElementById('editHistoryForm');
+      if (!form || !historyId) return;
+      form.action = '/history/' + historyId + '/edit';
+      const statusSelect = form.querySelector('select[name="new_status"]');
+      const progressSelect = form.querySelector('select[name="new_progress"]');
+      const detailTextarea = form.querySelector('textarea[name="detail"]');
+      if (statusSelect) {
+        statusSelect.value = newStatus || "";
+      }
+      setEditHistoryProgressOptions(newStatus || (statusSelect ? statusSelect.value : ''), newProgress);
+      if (detailTextarea) detailTextarea.value = detail;
+    });
+  }
+
+  if (editHistoryStatus) {
+    editHistoryStatus.addEventListener('change', function() {
+      setEditHistoryProgressOptions(this.value, editHistoryProgress ? editHistoryProgress.value : '');
+    });
+  }
+  const taskNamesData = document.getElementById('task-names-data');
+  const taskNames = taskNamesData ? JSON.parse(taskNamesData.textContent) : [];
+  
+  let maxNum = 0;
+  taskNames.forEach(name => {
+    if (!name) return;
+    // Check for "Number." pattern at start of line (support multiline)
+    // Use matchAll to find all numbered items in a single task description
+    const matches = name.matchAll(/(?:^|\n)(\d+)\./g);
+    for (const m of matches) {
+         const num = parseInt(m[1], 10);
+         if (num > maxNum) maxNum = num;
+    }
+  });
+  const nextTaskNum = maxNum + 1;
+
+  if (taskNameInput) {
+    taskNameInput.addEventListener('focus', function() {
+      if (!this.value.trim()) {
+        this.value = nextTaskNum + ". ";
+      }
+    });
+    
+    // Fix: Clear the number if user didn't type anything else (cleaner UI)
+    taskNameInput.addEventListener('blur', function() {
+      // If the value is just the number (e.g. "1. " or "1."), clear it
+      // so it doesn't look like a filled task
+      if (/^\d+\.\s*$/.test(this.value)) {
+        this.value = "";
+      }
+    });
+    
+    taskNameInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const cursorPosition = this.selectionStart;
+        const textBeforeCursor = this.value.substring(0, cursorPosition);
+        const textAfterCursor = this.value.substring(cursorPosition);
+        
+        // Find the current line number
+        const lines = textBeforeCursor.split('\n');
+        const currentLine = lines[lines.length - 1];
+        const match = currentLine.match(/^(\d+)\./);
+        
+        let nextNum = 1;
+        if (match) {
+            nextNum = parseInt(match[1]) + 1;
+        } else {
+            // If current line doesn't start with number, just increment line count?
+            // Or maybe 2 if previous was 1?
+            // Simple approach: look at previous line if current is empty?
+            // Let's just default to lines.length + 1 if not found
+             nextNum = lines.length + 1;
+        }
+        
+        const insertion = "\n" + nextNum + ". ";
+        this.value = textBeforeCursor + insertion + textAfterCursor;
+        
+        // Move cursor to end of inserted text
+        this.selectionStart = this.selectionEnd = cursorPosition + insertion.length;
+      }
+    });
+  }
+
+  const body = document.body;
+  let openMenu = null;
+  let openTrigger = null;
+
+  function closeOpenMenu() {
+    if (openMenu) {
+      openMenu.classList.remove('show');
+      openMenu.style.display = 'none';
+      openMenu = null;
+      openTrigger = null;
+    }
+  }
+
+  function openTaskMenu(trigger, menu) {
+    const rect = trigger.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.display = 'block';
+    menu.classList.add('show');
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const menuHeight = menu.offsetHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let top;
+    if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+      top = rect.top - menuHeight + rect.height;
+    } else {
+      top = rect.bottom;
+    }
+
+    menu.style.top = top + 'px';
+    menu.style.left = (rect.right - menu.offsetWidth) + 'px';
+
+    openMenu = menu;
+    openTrigger = trigger;
+  }
+
+  document.addEventListener('click', function(e) {
+    const toggle = e.target.closest('.task-actions-toggle');
+    if (toggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const container = toggle.closest('.task-actions-dropdown');
+      if (!container) return;
+      const taskId = container.getAttribute('data-task-id');
+      let menu = container.querySelector('.task-actions-menu');
+      if (!menu && taskId) {
+        menu = document.querySelector('.task-actions-menu[data-task-id="' + taskId + '"]');
+      }
+      if (!menu) return;
+
+      if (!menu.dataset.portal) {
+        body.appendChild(menu);
+        menu.dataset.portal = '1';
+      }
+
+      if (openMenu === menu) {
+        closeOpenMenu();
+      } else {
+        closeOpenMenu();
+        openTaskMenu(toggle, menu);
+      }
+      return;
+    }
+
+    if (openMenu && !openMenu.contains(e.target)) {
+      closeOpenMenu();
+    }
+  });
+
+  window.addEventListener('scroll', function() {
+    if (openMenu) {
+      closeOpenMenu();
+    }
+  }, true);
+
+  window.addEventListener('resize', function() {
+    if (openMenu) {
+      closeOpenMenu();
+    }
+  });
+});
+</script>
+{% endblock %}

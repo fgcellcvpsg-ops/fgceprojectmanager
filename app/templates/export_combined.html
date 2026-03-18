@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ t('report_combined_title') }}</title>
+  <style>
+    body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
+
+    /* Header & Footer (WeasyPrint margin boxes may vary; fallback handled in route) */
+    @page { size: A4; margin: 20mm; }
+    /* Watermark */
+    body::before {
+      content: "FG Consulting Engineers";
+      position: fixed;
+      top: 40%;
+      left: 20%;
+      font-size: 48px;
+      color: rgba(4, 3, 141, 0.08);
+      transform: rotate(-30deg);
+      z-index: -1;
+    }
+
+    h2 { text-align: center; margin-bottom: 20px; color:#04038d; }
+    h3 { color:#04038d; margin-top:20px; }
+    .section { margin-bottom: 15px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #333; padding: 6px; text-align: left; }
+    th { background-color: #04038d; color:#fff; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+
+    .summary-box {
+      border: 2px solid #04038d;
+      padding: 10px;
+      margin-bottom: 15px;
+      background: #f0f4ff;
+      font-size: 13px;
+    }
+    .summary-box h3 { margin-top: 0; color: #04038d; }
+
+    .footer { margin-top: 20px; font-size: 11px; text-align: right; color:#555; }
+    .project-detail { page-break-inside: avoid; margin-top: 12px; }
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+    <div class="header">
+        <img src="{{ url_for('static', filename='logo.png', _external=True) }}" alt="Logo">
+        <div class="report-title">{{ report_title }}</div>
+        <div class="meta-info">
+            <p><strong>Generated at:</strong> {{ current_date }}</p>
+        </div>
+    </div>
+
+  {% set total = projects|length %}
+  {% set completed = (projects|selectattr('status','equalto','Completed')|list)|length %}
+  {% set avg_progress = ((projects|map(attribute='progress')|sum) / (total or 1))|round(1) %}
+  <div class="summary-box">
+    <h3>{{ t('report_summary') }}</h3>
+    <p>{{ t('report_total_projects') }}: {{ total }}</p>
+    <p>{{ t('report_completed') }}: {{ completed }}</p>
+    <p>{{ t('report_avg_progress') }}: {{ avg_progress }}%</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t('col_project_name') }}</th>
+        <th>{{ t('col_client') }}</th>
+        <th>{{ t('col_code') }}</th>
+        <th>{{ t('col_deadline') }}</th>
+        <th>{{ t('col_progress') }}</th>
+        <th>{{ t('col_last_update') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for project in projects %}
+      <tr>
+        <td>{{ project.name|project_title }}</td>
+        <td>{{ project.client.name if project.client else '—' }}</td>
+        <td>{{ project|format_code }}</td>
+        <td>{{ project.deadline|format_date if project.deadline else '—' }}</td>
+        <td>{{ project.progress }}%</td>
+        <td>{{ project.latest_update_date|format_date if project.latest_update_date else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% for project in projects %}
+  <div class="page-break"></div>
+  <div class="project-detail">
+    <h2>{{ t('page_project_detail_title') }}: {{ project.name|project_title }}</h2>
+    <p><strong>{{ t('label_client') }}:</strong> {{ project.client.name if project.client else '—' }}</p>
+    <p><strong>{{ t('label_code') }}:</strong> {{ project|format_code }}</p>
+    <p><strong>{{ t('label_address') }}:</strong> {{ project.address or '—' }}</p>
+    <p><strong>{{ t('label_deadline') }}:</strong> {{ project.deadline|format_date if project.deadline else '—' }}</p>
+    <p><strong>{{ t('label_scope') }}:</strong> {{ project.scope or '—' }}</p>
+    <p><strong>{{ t('label_status') }}:</strong> {{ t('status_' ~ project.status|replace(' ','_')) }}</p>
+    <p><strong>{{ t('label_progress') }}:</strong> {{ project.progress }}%</p>
+    <p><strong>{{ t('col_last_update') }}:</strong> {{ project.latest_update_date.strftime('%b %d, %y') if project.latest_update_date else '—' }}</p>
+
+    <h3>✅ {{ t('tasks_incomplete') }}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('task_name') }}</th>
+          <th>{{ t('assignee') }}</th>
+          <th>{{ t('deadline') }}</th>
+          <th>{{ t('status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in project.tasks if t.status != 'Completed' %}
+        <tr>
+          <td>{{ t.name }}</td>
+          <td>{{ (t.assignee.display_name if t.assignee and t.assignee.display_name else (t.assignee.username if t.assignee else '—')) }}</td>
+          <td>{{ t.deadline.strftime('%b %d, %y') if t.deadline else '—' }}</td>
+          <td>{{ t.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>🕒 {{ t('history_title') }}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('history_time') }}</th>
+          <th>{{ t('history_status') }}</th>
+          <th>{{ t('history_progress') }}</th>
+          <th>{{ t('history_detail') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if project.history %}
+          {% for h in project.history %}
+          <tr>
+            <td>{{ h.date|format_date if h.date else '—' }}</td>
+            <td>{{ h.old_status or '—' }} → {{ h.new_status or '—' }}</td>
+            <td>{{ (h.old_progress or 0) }}% → {{ (h.new_progress or 0) }}%</td>
+            <td>{{ h.detail or '—' }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4">{{ t('no_history_yet') }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+
+  <div class="footer">
+    {{ t('report_generated_by') }}
+  </div>
+</body>
+</html>

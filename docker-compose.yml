@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./instance:/app/instance
+    environment:
+      - FLASK_APP=wsgi.py
+      - FLASK_DEBUG=1
+      - DATABASE_URL=sqlite:////app/instance/data/projects.db
