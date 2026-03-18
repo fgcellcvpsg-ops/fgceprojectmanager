@@ -10,7 +10,12 @@
     <!-- DEBUG: Show error details -->
     <div class="alert alert-danger text-start mt-4" style="max-width: 800px; margin: 0 auto; overflow: auto;">
         <h4>Error Details (Debug Mode):</h4>
-        <pre>{{ error }}</pre>
+        <p><strong>Error:</strong> {{ error }}</p>
+        {% if error_trace %}
+        <hr>
+        <h5>Traceback:</h5>
+        <pre style="white-space: pre-wrap; font-size: 0.85rem;">{{ error_trace }}</pre>
+        {% endif %}
     </div>
 
     <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary mt-3">Go Home</a>

@@ -1,5 +1,6 @@
 import os
 import logging
+import traceback
 from datetime import date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 from flask_wtf.csrf import CSRFError
@@ -28,6 +29,10 @@ def create_app(config_class=None):
     app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # FORCE DEBUG MODE FOR TROUBLESHOOTING
+    app.config['DEBUG'] = True
+    app.config['PROPAGATE_EXCEPTIONS'] = True
     
     db_path = os.getenv('DATABASE_PATH') or os.path.join(app.instance_path, 'data', 'projects.db')
     db_dir = os.path.dirname(db_path)
@@ -165,13 +170,19 @@ def create_app(config_class=None):
 
     @app.errorhandler(500)
     def handle_server_error(e):
-        app.logger.error("500 Server Error: %s", e)
+        # Capture full traceback
+        error_trace = traceback.format_exc()
+        app.logger.error("500 Server Error: %s\n%s", e, error_trace)
+        
+        # Also print to stdout to ensure it appears in Render logs
+        print(f"CRITICAL ERROR TRACEBACK:\n{error_trace}", flush=True)
+
         if request.headers.get('HX-Request'):
             flash(t('err_server_error') if t('err_server_error') != 'err_server_error' else "Đã xảy ra lỗi máy chủ nội bộ. Vui lòng thử lại sau.", "danger")
             resp = make_response('', 204)
             resp.headers['HX-Redirect'] = request.referrer or url_for('main.dashboard')
             return resp
-        return render_template('500.html', error=e), 500
+        return render_template('500.html', error=e, error_trace=error_trace), 500
 
     # Create indexes on startup (optional, or move to a command)
     # with app.app_context():
