@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install gunicorn
 
 # Copy project
 COPY . .
@@ -31,4 +30,4 @@ COPY . .
 EXPOSE 8000
 
 # Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} wsgi:app"]
