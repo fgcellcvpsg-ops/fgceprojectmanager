@@ -8,12 +8,12 @@ def get_projects_query():
     if current_user.role_level >= 2:
         return Project.query
     else:
-        return Project.query.outerjoin(ProjectOwner).filter(
+        return Project.query.filter(
             or_(
                 Project.owner_id == current_user.id,
-                ProjectOwner.user_id == current_user.id
+                Project.owners.any(User.id == current_user.id)
             )
-        ).distinct()
+        )
 
 def apply_project_filters(query, args, ignore_default=False):
     if not args:
