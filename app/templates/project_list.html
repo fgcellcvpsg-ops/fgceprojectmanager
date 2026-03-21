@@ -150,7 +150,8 @@
 
     #projectListTableWrapper {
         overflow-y: auto;
-        max-height: 520px;
+        min-height: 400px;
+        max-height: 850px;
     }
 
     .progress-badge {
@@ -1389,7 +1390,10 @@
             function setTableHeight() {
                 const h = Math.ceil(statusOverviewCard.getBoundingClientRect().height);
                 if (!h) return;
-                tableWrapper.style.maxHeight = h + 'px';
+                const minH = 400;
+                const maxH = 850;
+                const clamped = Math.max(minH, Math.min(maxH, h));
+                tableWrapper.style.maxHeight = clamped + 'px';
             }
 
             let tableResizeTimer = null;
