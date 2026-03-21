@@ -500,7 +500,7 @@ def print_projects():
         filename = f"DANH_SACH_DU_AN_{current_time_str}"
         return render_template('print_projects.html', projects=[], current_time=current_time_str, page_title=filename)
         
-    projects = Project.query.filter(Project.id.in_(ids)).all()
+    projects = get_projects_query().filter(Project.id.in_(ids)).all()
     
     # Reorder to match input ids
     projects_map = {p.id: p for p in projects}
@@ -519,13 +519,36 @@ def print_projects():
 @login_required
 def open_folder():
     path = request.form.get('path')
+    project_id_raw = request.form.get('project_id')
+    try:
+        project_id = int(project_id_raw) if project_id_raw not in (None, '') else None
+    except Exception:
+        project_id = None
+
+    if not project_id:
+        flash(t('msg_access_denied') if t('msg_access_denied') != 'msg_access_denied' else "Access denied", "danger")
+        return redirect(request.referrer)
+
+    project = get_projects_query().filter(Project.id == project_id).first()
+    if not project:
+        flash(t('msg_access_denied') if t('msg_access_denied') != 'msg_access_denied' else "Access denied", "danger")
+        return redirect(request.referrer)
+
+    if not project.source:
+        flash(t('err_path_not_exists'), "danger")
+        return redirect(request.referrer)
+
+    if os.path.normcase(os.path.normpath(project.source)) != os.path.normcase(os.path.normpath(path or '')):
+        flash(t('msg_access_denied') if t('msg_access_denied') != 'msg_access_denied' else "Access denied", "danger")
+        return redirect(request.referrer)
+
     if not path or not os.path.exists(path):
         flash(t('err_path_not_exists'), "danger")
         return redirect(request.referrer)
     
     # Security check: Only allow opening directories, not files (to prevent executing malware)
     if not os.path.isdir(path):
-        flash(t('err_path_not_dir') if 'err_path_not_dir' in TRANSLATIONS[get_lang()] else "Vì lý do bảo mật, chỉ được phép mở thư mục.", "warning")
+        flash(t('err_path_not_dir') if t('err_path_not_dir') != 'err_path_not_dir' else "Vì lý do bảo mật, chỉ được phép mở thư mục.", "warning")
         return redirect(request.referrer)
 
     try:
@@ -548,7 +571,7 @@ def reports():
     data = []
     now = datetime.now(timezone.utc).replace(tzinfo=None).date()
     for c in clients:
-        projects = Project.query.filter_by(client_id=c.id).all()
+        projects = get_projects_query().filter(Project.client_id == c.id).all()
         if not projects:
             continue
         total = len(projects)

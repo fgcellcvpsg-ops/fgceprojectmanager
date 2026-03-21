@@ -31,11 +31,19 @@ try:
     # Expose 'app' for Gunicorn to import
     app = create_app()
 
+    def get_port():
+        try:
+            return int(os.getenv("PORT", "5000"))
+        except Exception:
+            return 5000
+
     def open_browser():
         """Wait for server to start then open browser"""
         time.sleep(2.0)
-        print("Opening browser at http://localhost:5001 ...")
-        webbrowser.open("http://localhost:5001")
+        port = get_port()
+        url = f"http://localhost:{port}"
+        print(f"Opening browser at {url} ...")
+        webbrowser.open(url)
 
     if __name__ == "__main__":
         # PyInstaller multiprocessing fix for Windows
@@ -86,7 +94,7 @@ try:
 
             # Force debug=True for troubleshooting, but disable reloader to avoid process issues
             # is_debug = True
-            app.run(host='0.0.0.0', debug=is_debug, port=5001, use_reloader=False)
+            app.run(host='0.0.0.0', debug=is_debug, port=get_port(), use_reloader=False)
 
         except Exception as e:
             print(f"\n❌ CRITICAL ERROR: {e}")

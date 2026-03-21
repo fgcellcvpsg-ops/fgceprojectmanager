@@ -1,6 +1,8 @@
 import os
 import logging
 import traceback
+import hashlib
+from urllib.parse import urlsplit, urlunsplit
 from datetime import date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 from flask_wtf.csrf import CSRFError
@@ -9,11 +11,35 @@ from app.extensions import db, login_manager, migrate, csrf, oauth, limiter, mai
 from app.models import User, Project, Client, History, Task, ProjectOwner, ActivityLog, WorkHistoryReport
 from app.utils import t, get_lang, format_date, project_title, format_code, TRANSLATIONS
 
+def _redact_db_uri(uri: str) -> str:
+    if not uri:
+        return ""
+    try:
+        parsed = urlsplit(uri)
+        if not parsed.scheme or not parsed.netloc:
+            return uri
+        if parsed.scheme.startswith("sqlite"):
+            return uri
+        netloc = parsed.netloc
+        if "@" not in netloc:
+            return uri
+        userinfo, hostport = netloc.rsplit("@", 1)
+        if ":" in userinfo:
+            user, _pw = userinfo.split(":", 1)
+            userinfo_redacted = f"{user}:***"
+        else:
+            userinfo_redacted = userinfo
+        return urlunsplit((parsed.scheme, f"{userinfo_redacted}@{hostport}", parsed.path, parsed.query, parsed.fragment))
+    except Exception:
+        return uri
+
 def create_app(config_class=None):
     app = Flask(__name__)
     
     # Configuration
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or 'dev-secret-key'
+    is_debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+    app.config['DEBUG'] = is_debug
+    app.config['PROPAGATE_EXCEPTIONS'] = is_debug
     
     # Mail Configuration
     app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
@@ -30,10 +56,6 @@ def create_app(config_class=None):
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     
-    # FORCE DEBUG MODE FOR TROUBLESHOOTING
-    app.config['DEBUG'] = True
-    app.config['PROPAGATE_EXCEPTIONS'] = True
-    
     db_path = os.getenv('DATABASE_PATH') or os.path.join(app.instance_path, 'data', 'projects.db')
     db_dir = os.path.dirname(db_path)
     if db_dir and not os.path.exists(db_dir):
@@ -42,6 +64,20 @@ def create_app(config_class=None):
     # Ensure correct URI format for Windows
     db_uri_path = db_path.replace('\\', '/')
     database_url = os.getenv('DATABASE_URL')
+
+    secret_key = os.getenv('SECRET_KEY')
+    if not secret_key:
+        seed = database_url or db_uri_path or app.instance_path
+        secret_key = hashlib.sha256(seed.encode('utf-8')).hexdigest()
+    app.config['SECRET_KEY'] = secret_key
+
+    app.config['BUILD_VERSION'] = (
+        os.getenv("APP_VERSION")
+        or os.getenv("BUILD_VERSION")
+        or os.getenv("RENDER_GIT_COMMIT")
+        or os.getenv("GIT_SHA")
+        or "local"
+    )
     
     # Render provides 'postgres://' but SQLAlchemy 1.4+ requires 'postgresql://'
     if database_url and database_url.startswith("postgres://"):
@@ -99,13 +135,26 @@ def create_app(config_class=None):
             format_code=format_code,
             TRANSLATIONS=TRANSLATIONS,
             today=date.today(),
-            timedelta=timedelta
+            timedelta=timedelta,
+            build_version=app.config.get('BUILD_VERSION', ''),
+            db_uri_redacted=_redact_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', ''))
         )
 
     # Register filters
     app.jinja_env.filters['project_title'] = project_title
     app.jinja_env.filters['format_code'] = format_code
     app.jinja_env.filters['format_date'] = format_date
+
+    @app.after_request
+    def add_no_cache_headers(resp):
+        try:
+            if resp.mimetype == 'text/html':
+                resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                resp.headers['Pragma'] = 'no-cache'
+                resp.headers['Expires'] = '0'
+        except Exception:
+            pass
+        return resp
 
     # Handle Unauthorized (401) for HTMX
     @login_manager.unauthorized_handler

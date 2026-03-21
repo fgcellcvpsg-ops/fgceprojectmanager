@@ -146,32 +146,11 @@
                 {% endif %}
                 </select>
 
-            <!-- Project Type Toggle -->
-            {% if mode == 'add_quotation' or current_user.role == 'quotation' %}
-                <input type="hidden" name="project_type" value="FGC" id="typeFGC_hidden">
-                <!-- Hidden inputs to satisfy JS selectors if needed, or modify JS -->
-                <div style="display:none;">
-                     <input type="radio" name="project_type" id="typeFGC" value="FGC" checked>
-                     <input type="radio" name="project_type" id="typePEI" value="PEI">
-                </div>
-            {% else %}
-            <div class="text-center">
-                <div class="type-toggle-group">
-                  <label class="type-option">
-                    <input type="radio" name="project_type" id="typeFGC" value="FGC" {% if p_type == 'FGC' %}checked{% endif %}>
-                    <div class="type-card">
-                      <span>🏭</span><span>{{ t('type_fgc_title') }}</span>
-                    </div>
-                  </label>
-                  <label class="type-option">
-                    <input type="radio" name="project_type" id="typePEI" value="PEI" {% if p_type == 'PEI' %}checked{% endif %}>
-                    <div class="type-card">
-                      <span>🏢</span><span>{{ t('type_pei_title') }}</span>
-                    </div>
-                  </label>
-                </div>
+            <input type="hidden" name="project_type" value="{{ p_type }}" id="typeFGC_hidden">
+            <div style="display:none;">
+                 <input type="radio" name="project_type" id="typeFGC" value="FGC" {% if p_type == 'FGC' %}checked{% endif %}>
+                 <input type="radio" name="project_type" id="typePEI" value="PEI" {% if p_type == 'PEI' %}checked{% endif %}>
             </div>
-            {% endif %}
 
             {% if mode == 'edit' %}
             <div class="d-flex justify-content-end mb-2">

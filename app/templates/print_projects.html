@@ -126,6 +126,17 @@
             position: relative;
             z-index: 1;
         }
+
+        .status {
+            font-weight: bold;
+        }
+        .status-new { color: #cbd5e1; }
+        .status-in-progress { color: #04038d; }
+        .status-on-hold { color: #f59e0b; }
+        .status-completed { color: #10b981; }
+        .status-close { color: #6c757d; }
+        .status-quotation { color: #6f42c1; }
+        .status-default { color: #333; }
     </style>
 </head>
 <body>
@@ -237,7 +248,21 @@
                                     <span style="font-style: italic;">Unassigned</span>
                                 {% endif %}
                                 - 
-                                <span style="color: {% if p.status == 'New' %}#cbd5e1{% elif p.status == 'In Progress' %}#04038d{% elif p.status == 'On Hold' or p.status == 'Suspended' %}#f59e0b{% elif p.status == 'Completed' %}#10b981{% elif p.status == 'Close' %}#6c757d{% elif 'Quotation' in p.status or 'Quoting' in p.status %}#6f42c1{% else %}#333{% endif %}; font-weight: bold;">{{ p.status }}</span>
+                                {% set status_class = 'status-default' %}
+                                {% if p.status == 'New' %}
+                                    {% set status_class = 'status-new' %}
+                                {% elif p.status == 'In Progress' %}
+                                    {% set status_class = 'status-in-progress' %}
+                                {% elif p.status == 'On Hold' or p.status == 'Suspended' %}
+                                    {% set status_class = 'status-on-hold' %}
+                                {% elif p.status == 'Completed' %}
+                                    {% set status_class = 'status-completed' %}
+                                {% elif p.status == 'Close' %}
+                                    {% set status_class = 'status-close' %}
+                                {% elif 'Quotation' in p.status or 'Quoting' in p.status %}
+                                    {% set status_class = 'status-quotation' %}
+                                {% endif %}
+                                <span class="status {{ status_class }}">{{ p.status }}</span>
                             </div>
                         </td>
                         <td>{{ p|format_code }}</td>

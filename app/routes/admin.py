@@ -136,6 +136,12 @@ def admin_users():
                     flash(t('err_password_change_denied'), "danger")
                     return redirect(url_for('admin.admin_users'))
 
+                if uid == current_user.id:
+                    current_pw = (request.form.get('current_password') or '')
+                    if (not current_pw) or (not u.check_password(current_pw)):
+                        flash(t('err_current_password_incorrect'), "danger")
+                        return redirect(url_for('admin.admin_users'))
+
                 if not is_strong_password(new_password):
                     flash(t('err_password_strength'), "danger")
                     return redirect(url_for('admin.admin_users'))

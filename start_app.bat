@@ -14,7 +14,7 @@ if not exist .venv (
 call .venv\Scripts\activate.bat
 
 echo Dang khoi dong server...
-echo Truy cap vao: http://127.0.0.1:5001
+echo Truy cap vao: http://127.0.0.1:5000
 echo Nhan Ctrl+C de dung server.
 echo.
 

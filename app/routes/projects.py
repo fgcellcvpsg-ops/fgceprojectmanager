@@ -48,7 +48,6 @@ def list():
     status_counts_rows = q_all.with_entities(Project.status, func.count(Project.id)).group_by(Project.status).all()
     status_map = {row[0]: row[1] for row in status_counts_rows}
 
-    count_quotation = status_map.get('Quotation', 0)
     count_new = status_map.get('New', 0)
     count_inprogress = status_map.get('In Progress', 0)
     count_completed = status_map.get('Completed', 0)
@@ -216,6 +215,148 @@ def list():
     else:
         users = User.query.order_by(User.display_name).all()
 
+    args_stats = dict(args)
+    args_stats.pop('status', None)
+    args_stats.pop('qstatus', None)
+    args_stats.pop('page', None)
+    args_stats.pop('sort', None)
+    args_stats.pop('order', None)
+
+    q_stats = apply_project_filters(get_projects_query(), args_stats, ignore_default=True)
+    if status_filter != 'Quotation':
+        q_stats = q_stats.filter(and_(~Project.status.ilike('Quotation%'), ~Project.status.ilike('Quoting%')))
+
+    status_counts_rows_stats = q_stats.with_entities(Project.status, func.count(Project.id)).group_by(Project.status).all()
+    status_map_stats = {row[0]: row[1] for row in status_counts_rows_stats}
+
+    total_projects_only = sum(
+        v for k, v in status_map_stats.items()
+        if k and not k.startswith('Quotation')
+    )
+    total_quotations_only = 0
+    for k, v in status_map_stats.items():
+        if not k:
+            continue
+        if k == 'Quotation' or k == 'Quotation - Not Started':
+            total_quotations_only += v
+        elif k == 'Quotation - In Progress':
+            total_quotations_only += v
+        elif k == 'Quoting In Progress':
+            total_quotations_only += v
+        elif k == 'Quotation - Quote Sent':
+            total_quotations_only += v
+
+    count_quotation = total_quotations_only
+
+    agg = q_all.with_entities(func.count(Project.id), func.coalesce(func.sum(Project.progress), 0)).one()
+    total_count = agg[0] or 0
+    total_progress_sum = agg[1] or 0
+    avg_progress = round(total_progress_sum / total_count) if total_count else 0
+
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+    if status_filter == 'Quotation':
+        statuses_for_heatmap = ['Quotation', 'New', 'In Progress', 'On Hold', 'Completed', 'Close']
+    else:
+        statuses_for_heatmap = ['New', 'In Progress', 'On Hold', 'Completed', 'Close']
+    status_month_heatmap = {s: [0] * 12 for s in statuses_for_heatmap}
+    max_month_count = 0
+
+    if db_uri.startswith('sqlite'):
+        month_expr = func.strftime('%m', Project.deadline)
+        heatmap_rows = (
+            q_stats.with_entities(Project.status, month_expr.label('month'), func.count(Project.id))
+            .filter(Project.deadline.isnot(None))
+            .group_by(Project.status, month_expr)
+            .all()
+        )
+        for status, month_str, cnt in heatmap_rows:
+            if not status or month_str is None:
+                continue
+            heatmap_key = 'Quotation' if status.startswith('Quotation') or status.startswith('Quoting') else status
+            if heatmap_key not in status_month_heatmap:
+                continue
+            try:
+                m = int(month_str)
+            except Exception:
+                continue
+            if 1 <= m <= 12:
+                status_month_heatmap[heatmap_key][m - 1] += cnt
+                if status_month_heatmap[heatmap_key][m - 1] > max_month_count:
+                    max_month_count = status_month_heatmap[heatmap_key][m - 1]
+    else:
+        month_expr = extract('month', Project.deadline)
+        heatmap_rows = (
+            q_stats.with_entities(Project.status, month_expr.label('month'), func.count(Project.id))
+            .filter(Project.deadline.isnot(None))
+            .group_by(Project.status, month_expr)
+            .all()
+        )
+        for status, month_val, cnt in heatmap_rows:
+            if not status or month_val is None:
+                continue
+            heatmap_key = 'Quotation' if status.startswith('Quotation') or status.startswith('Quoting') else status
+            if heatmap_key not in status_month_heatmap:
+                continue
+            try:
+                m = int(month_val)
+            except Exception:
+                continue
+            if 1 <= m <= 12:
+                status_month_heatmap[heatmap_key][m - 1] += cnt
+                if status_month_heatmap[heatmap_key][m - 1] > max_month_count:
+                    max_month_count = status_month_heatmap[heatmap_key][m - 1]
+
+    today = date.today()
+    overdue_projects = q_stats.filter(
+        Project.deadline < today,
+        Project.status.notin_(['Completed', 'Close'])
+    ).order_by(Project.deadline).limit(5).all()
+
+    approaching_projects = q_stats.filter(
+        Project.deadline >= today,
+        Project.deadline <= today + timedelta(days=7),
+        Project.status.notin_(['Completed', 'Close'])
+    ).order_by(Project.deadline).limit(5).all()
+
+    q_notes = CalendarNote.query.filter(
+        CalendarNote.note_type == 'appointment',
+        CalendarNote.note_date >= today,
+        CalendarNote.note_date <= today + timedelta(days=7)
+    )
+    if current_user.role not in ['admin', 'manager', 'leader', 'quotation', 'secretary']:
+        q_notes = q_notes.filter(CalendarNote.user_id == current_user.id)
+    upcoming_appointments = q_notes.order_by(CalendarNote.note_date).limit(5).all()
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    visible_projects_subq = q_stats.with_entities(Project.id.label('id')).subquery()
+    visible_project_ids = db.session.query(visible_projects_subq.c.id)
+    cutoff = now - timedelta(days=10)
+    questions_all = (
+        ProjectQuestion.query.filter(
+            ProjectQuestion.project_id.in_(visible_project_ids),
+            or_(ProjectQuestion.answered_at.is_(None), ProjectQuestion.answered_at >= cutoff),
+        )
+        .options(
+            joinedload(ProjectQuestion.project),
+            joinedload(ProjectQuestion.created_by),
+            joinedload(ProjectQuestion.answered_by),
+        )
+        .order_by(
+            ProjectQuestion.answered_at.is_(None).desc(),
+            ProjectQuestion.created_at.desc()
+        )
+        .limit(300)
+        .all()
+    )
+    dashboard_questions = _filter_visible_questions(questions_all, now)
+
+    project_notes = (
+        q_stats.filter(Project.note.isnot(None), Project.note != '')
+        .order_by(Project.latest_update_date.desc())
+        .limit(20)
+        .all()
+    )
+
     # If viewing quotations, compute sub-status counts
     quotation_counts = {'not_started': 0, 'doing': 0, 'quote_sent': 0, 'submitted': 0}
     if status_filter == 'Quotation':
@@ -259,13 +400,24 @@ def list():
         pei_count=pei_count,
         quotation_counts=quotation_counts,
         current_sort=sort_by,
-        current_order=order
+        current_order=order,
+        statuses_for_heatmap=statuses_for_heatmap,
+        status_month_heatmap=status_month_heatmap,
+        max_month_count=max_month_count,
+        count_total_regular=total_projects_only,
+        count_total_quotation=total_quotations_only,
+        avg_progress=avg_progress,
+        overdue_projects=overdue_projects,
+        approaching_projects=approaching_projects,
+        upcoming_appointments=upcoming_appointments,
+        dashboard_questions=dashboard_questions,
+        project_notes=project_notes
     )
 
 @projects_bp.route('/calendar_view')
 @login_required
 def calendar_view():
-    projects = Project.query.options(joinedload(Project.client)).all()
+    projects = get_projects_query().options(joinedload(Project.client)).all()
     clients = Client.query.order_by(Client.name).all()
     
     # Show notes of current user AND all appointments (public)
@@ -837,7 +989,7 @@ def delete_project(project_id):
 @projects_bp.route('/update_progress/<int:project_id>', methods=['POST'])
 @login_required
 def update_progress(project_id):
-    project = db.session.get(Project, project_id)
+    project = get_projects_query().filter(Project.id == project_id).first()
     if not project:
         abort(404)
     
@@ -930,7 +1082,7 @@ def update_progress(project_id):
 @projects_bp.route('/project/<int:project_id>/update_status', methods=['POST'])
 @login_required
 def update_project_status(project_id):
-    project = db.session.get(Project, project_id)
+    project = get_projects_query().filter(Project.id == project_id).first()
     if not project:
         abort(404)
 
@@ -1157,7 +1309,7 @@ def export_selected_projects():
 @projects_bp.route('/project/<int:project_id>/add_question', methods=['POST'])
 @login_required
 def add_question(project_id):
-    project = db.session.get(Project, project_id)
+    project = get_projects_query().filter(Project.id == project_id).first()
     if not project:
         abort(404)
     content = (request.form.get('question') or '').strip()
@@ -1516,7 +1668,7 @@ def delete_answer(question_id):
 @projects_bp.route('/project/<int:project_id>/update_note', methods=['POST'])
 @login_required
 def update_note(project_id):
-    project = db.session.get(Project, project_id)
+    project = get_projects_query().filter(Project.id == project_id).first()
     if not project:
         abort(404)
         

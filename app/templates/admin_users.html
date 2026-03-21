@@ -259,9 +259,13 @@
               {% endif %}
             </select>
           </div>
+          <div class="mb-3" id="edit_current_password_group" style="display:none;">
+            <label class="form-label">{{ t('label_current_password') }}</label>
+            <input name="current_password" type="password" class="form-control" id="edit_current_password">
+          </div>
           <div class="mb-3">
             <label class="form-label">{{ t('label_new_password_optional') }} <span class="text-muted small">{{ t('text_optional_password') }}</span></label>
-            <input name="new_password" type="password" class="form-control" placeholder="{{ t('placeholder_new_password') }}">
+            <input name="new_password" type="password" class="form-control" id="edit_new_password" placeholder="{{ t('placeholder_new_password') }}">
           </div>
           <div class="mb-3">
              <div class="form-check form-switch">
@@ -313,15 +317,18 @@ document.addEventListener('DOMContentLoaded', function(){
   // Edit Modal Population
   var editUserModal = document.getElementById('editUserModal');
   editUserModal.addEventListener('show.bs.modal', function (event) {
-    var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    var username = button.getAttribute('data-username');
-    var email = button.getAttribute('data-email');
-    var displayName = button.getAttribute('data-displayname');
-    var role = button.getAttribute('data-role');
-    var allowed = button.getAttribute('data-allowed');
-    var isAdminTarget = button.getAttribute('data-is-admin-target') === 'true';
-    var isManagerTarget = button.getAttribute('data-is-manager-target') === 'true';
+    var trigger = event.relatedTarget || event.target;
+    if (trigger && trigger.closest) {
+      trigger = trigger.closest('[data-id]') || trigger;
+    }
+    var id = trigger ? trigger.getAttribute('data-id') : null;
+    var username = trigger ? trigger.getAttribute('data-username') : '';
+    var email = trigger ? trigger.getAttribute('data-email') : '';
+    var displayName = trigger ? trigger.getAttribute('data-displayname') : '';
+    var role = trigger ? trigger.getAttribute('data-role') : '';
+    var allowed = trigger ? trigger.getAttribute('data-allowed') : '0';
+    var isAdminTarget = trigger ? (trigger.getAttribute('data-is-admin-target') === 'true') : false;
+    var isManagerTarget = trigger ? (trigger.getAttribute('data-is-manager-target') === 'true') : false;
 
     // Populate fields
     document.getElementById('edit_user_id').value = id;
@@ -330,6 +337,8 @@ document.addEventListener('DOMContentLoaded', function(){
     document.getElementById('edit_display_name').value = displayName;
     document.getElementById('edit_role').value = role;
     document.getElementById('edit_is_allowed').checked = (allowed === '1');
+    document.getElementById('edit_new_password').value = '';
+    document.getElementById('edit_current_password').value = '';
 
     // Permission logic for Role Select and Allowed Checkbox
     // Logic from original template: 
@@ -337,12 +346,17 @@ document.addEventListener('DOMContentLoaded', function(){
     
     var roleSelect = document.getElementById('edit_role');
     var allowedCheck = document.getElementById('edit_is_allowed');
+    var currentPwGroup = document.getElementById('edit_current_password_group');
+    var currentPwInput = document.getElementById('edit_current_password');
     
     // Reset state
     roleSelect.disabled = false;
     allowedCheck.disabled = false;
+    currentPwGroup.style.display = 'none';
+    currentPwInput.required = false;
 
     var currentUserRole = "{{ current_user.role }}";
+    var currentUserId = "{{ current_user.id }}";
 
     if ((currentUserRole !== 'admin' && isAdminTarget) || (currentUserRole === 'manager' && isManagerTarget)) {
        roleSelect.disabled = true;
@@ -361,6 +375,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // However, an Admin should be able to block a Manager?
     // Let's stick to simple: if I can edit the user, I can change these.
     // The disable logic above handles the 'can I edit this user's role' part.
+
+    if (id && String(id) === String(currentUserId)) {
+      currentPwGroup.style.display = '';
+      currentPwInput.required = false;
+    }
   });
 
   // Auto-check allowed in Add Modal

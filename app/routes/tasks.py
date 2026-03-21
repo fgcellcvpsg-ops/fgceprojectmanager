@@ -190,12 +190,24 @@ def create_task_page(project_id):
 @tasks_bp.route('/project/<int:project_id>/task/<int:task_id>/status_drag', methods=['POST'])
 @login_required
 def update_task_status_drag(project_id, task_id):
+    # Permission check: Secretary and Quotation cannot update tasks
+    if current_user.role in ['secretary', 'quotation']:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+
     task = db.session.get(Task, task_id)
     if not task:
         return jsonify({'success': False, 'message': 'Task not found'}), 404
         
     if task.project_id != project_id:
         return jsonify({'success': False, 'message': 'Task does not belong to this project'}), 400
+
+    project = get_projects_query().filter(Project.id == project_id).first()
+    if not project:
+        return jsonify({'success': False, 'message': 'Project not found or access denied'}), 404
+
+    allowed = (current_user.role in ['admin', 'manager', 'leader']) or (task.assignee_id == getattr(current_user, 'id', None))
+    if not allowed:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
         
     new_status = request.form.get('status')
     if new_status not in ['New', 'Doing', 'Done']:
@@ -221,6 +233,15 @@ def patch_task(task_id):
     t_obj = db.session.get(Task, task_id)
     if not t_obj:
         abort(404)
+
+    project = get_projects_query().filter(Project.id == t_obj.project_id).first()
+    if not project:
+        abort(404)
+
+    allowed = (current_user.role in ['admin', 'manager', 'leader']) or (t_obj.assignee_id == getattr(current_user, 'id', None))
+    if not allowed:
+        abort(403)
+
     data = request.get_json(force=True)
     client_ver = int(data.get('version', t_obj.version))
     if client_ver != t_obj.version:
@@ -376,11 +397,13 @@ def delete_task(project_id, task_id):
          flash(t('err_delete_task_denied') if t('err_delete_task_denied') != 'err_delete_task_denied' else "❌ Bạn không có quyền xóa công việc.", "danger")
          return redirect(url_for('projects.project_detail', project_id=project_id))
 
-    project = db.session.get(Project, project_id)
+    project = get_projects_query().filter(Project.id == project_id).first()
     if not project:
         abort(404)
     task = db.session.get(Task, task_id)
     if not task:
+        abort(404)
+    if task.project_id != project_id:
         abort(404)
     
     # Admin, Manager, Leader can delete tasks

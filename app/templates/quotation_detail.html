@@ -33,6 +33,7 @@
               {{ project.source }}
               <form action="{{ url_for('main.open_folder') }}" method="post" style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="project_id" value="{{ project.id }}">
                 <input type="hidden" name="path" value="{{ project.source }}">
                 <button type="submit" class="btn btn-sm btn-outline-primary ms-2 py-0 fw-bold" title="Open Folder">GO</button>
               </form>
