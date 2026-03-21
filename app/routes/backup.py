@@ -17,6 +17,7 @@ from app.utils import min_role_required, t
 backup_bp = Blueprint('backup', __name__)
 _backup_lock = threading.Lock()
 _backup_running = False
+_restore_running = False
 
 def get_backup_dir():
     backup_dir = os.getenv('BACKUP_DIR') or os.path.join(current_app.instance_path, 'backups')
@@ -188,6 +189,82 @@ def _create_postgres_backup_zip(app, backup_dir, final_path):
         with _backup_lock:
             _backup_running = False
 
+def _restore_postgres_from_zip(app, backup_dir, zip_path):
+    global _restore_running
+    try:
+        with app.app_context():
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                names = z.namelist()
+                table_files = [n for n in names if n.startswith('tables/') and n.endswith('.jsonl')]
+                if not table_files:
+                    raise RuntimeError("Invalid backup format")
+
+                engine = db.engine
+                inspector = inspect(engine)
+                meta = MetaData()
+                restore_tables = [os.path.splitext(os.path.basename(n))[0] for n in table_files]
+                existing_tables = set(inspector.get_table_names())
+                restore_tables = [t for t in restore_tables if t in existing_tables and t != 'alembic_version']
+                restore_tables = _toposort_tables(restore_tables, inspector)
+
+                quoted = ", ".join([f"\"{t}\"" for t in restore_tables])
+                if engine.dialect.name == 'postgresql' and quoted:
+                    db.session.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+                    db.session.commit()
+
+                for table_name in restore_tables:
+                    table = Table(table_name, meta, autoload_with=engine)
+                    member_name = f"tables/{table_name}.jsonl"
+                    with z.open(member_name) as f:
+                        batch = []
+                        attempt = 0
+                        for raw in f:
+                            rec = json.loads(raw.decode('utf-8'))
+                            rec = _infer_and_cast(table, rec)
+                            batch.append(rec)
+                            if len(batch) >= 500:
+                                while True:
+                                    try:
+                                        db.session.execute(insert(table), batch)
+                                        break
+                                    except OperationalError:
+                                        attempt += 1
+                                        try:
+                                            db.session.rollback()
+                                        except Exception:
+                                            pass
+                                        if attempt >= 2:
+                                            raise
+                                batch = []
+                        if batch:
+                            db.session.execute(insert(table), batch)
+                    db.session.commit()
+
+                if engine.dialect.name == 'postgresql':
+                    for table_name in restore_tables:
+                        table = Table(table_name, meta, autoload_with=engine)
+                        if 'id' in table.c:
+                            db.session.execute(
+                                text(
+                                    f"SELECT setval(pg_get_serial_sequence(:tname, 'id'), "
+                                    f"(SELECT COALESCE(MAX(id), 1) FROM \"{table_name}\"), true)"
+                                ),
+                                {'tname': table_name},
+                            )
+                    db.session.commit()
+    except Exception:
+        try:
+            current_app.logger.exception("Restore background task failed")
+        except Exception:
+            pass
+    finally:
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+        with _backup_lock:
+            _restore_running = False
+
 @backup_bp.route('/backup', endpoint='list')
 @login_required
 @min_role_required('admin')
@@ -276,7 +353,7 @@ def download_backup(filename):
     return send_file(fp, as_attachment=True)
 
 
-@backup_bp.route('/restore_backup/<filename>', methods=['POST'])
+@backup_bp.route('/restore_backup/<filename>', methods=['GET', 'POST'])
 @login_required
 @min_role_required('admin')
 def restore_backup(filename):
@@ -284,6 +361,10 @@ def restore_backup(filename):
     fp = _safe_join(backup_dir, filename)
     db_uri = _current_db_uri()
     try:
+        if request.method == 'GET':
+            flash("Vui lòng dùng nút Restore (POST).", "warning")
+            return redirect(url_for('backup.list'))
+
         with zipfile.ZipFile(fp, 'r') as z:
             sqlite_path = _sqlite_db_path(db_uri)
             if sqlite_path:
@@ -296,52 +377,25 @@ def restore_backup(filename):
                     extracted = z.extract(arcname, tmp_dir)
                     os.replace(extracted, sqlite_path)
             else:
-                names = z.namelist()
-                table_files = [n for n in names if n.startswith('tables/') and n.endswith('.jsonl')]
-                if not table_files:
-                    raise RuntimeError("Invalid backup format")
+                pass
 
-                engine = db.engine
-                inspector = inspect(engine)
-                meta = MetaData()
-                restore_tables = [os.path.splitext(os.path.basename(n))[0] for n in table_files]
-                existing_tables = set(inspector.get_table_names())
-                restore_tables = [t for t in restore_tables if t in existing_tables and t != 'alembic_version']
-                restore_tables = _toposort_tables(restore_tables, inspector)
+        if not _sqlite_db_path(db_uri):
+            with _backup_lock:
+                global _restore_running
+                if _restore_running:
+                    flash("Restore đang chạy, vui lòng chờ hoàn tất.", "warning")
+                    return redirect(url_for('backup.list'))
+                _restore_running = True
 
-                quoted = ", ".join([f"\"{t}\"" for t in restore_tables])
-                if engine.dialect.name == 'postgresql' and quoted:
-                    db.session.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
-                    db.session.commit()
-
-                for table_name in restore_tables:
-                    table = Table(table_name, meta, autoload_with=engine)
-                    member_name = f"tables/{table_name}.jsonl"
-                    with z.open(member_name) as f:
-                        batch = []
-                        for raw in f:
-                            rec = json.loads(raw.decode('utf-8'))
-                            rec = _infer_and_cast(table, rec)
-                            batch.append(rec)
-                            if len(batch) >= 500:
-                                db.session.execute(insert(table), batch)
-                                batch = []
-                        if batch:
-                            db.session.execute(insert(table), batch)
-                    db.session.commit()
-
-                if engine.dialect.name == 'postgresql':
-                    for table_name in restore_tables:
-                        table = Table(table_name, meta, autoload_with=engine)
-                        if 'id' in table.c:
-                            db.session.execute(
-                                text(
-                                    f"SELECT setval(pg_get_serial_sequence(:tname, 'id'), "
-                                    f"(SELECT COALESCE(MAX(id), 1) FROM \"{table_name}\"), true)"
-                                ),
-                                {'tname': table_name},
-                            )
-                    db.session.commit()
+            app_obj = current_app._get_current_object()
+            t_worker = threading.Thread(
+                target=_restore_postgres_from_zip,
+                args=(app_obj, backup_dir, fp),
+                daemon=True,
+            )
+            t_worker.start()
+            flash("⏳ Đã bắt đầu Restore. Vui lòng đợi và tải lại trang sau vài phút.", "info")
+            return redirect(url_for('backup.list'))
 
         msg = t('msg_restore_success')
         flash(msg if msg != 'msg_restore_success' else "♻️ Phục hồi thành công. Khởi động lại ứng dụng.", "success")

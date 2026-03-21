@@ -106,6 +106,13 @@ def create_app(config_class=None):
             'pool_size': int(os.getenv('DB_POOL_SIZE', '5')),
             'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '2')),
             'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '30')),
+            'connect_args': {
+                'connect_timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '10')),
+                'keepalives': 1,
+                'keepalives_idle': int(os.getenv('DB_KEEPALIVES_IDLE', '30')),
+                'keepalives_interval': int(os.getenv('DB_KEEPALIVES_INTERVAL', '10')),
+                'keepalives_count': int(os.getenv('DB_KEEPALIVES_COUNT', '5')),
+            },
         }
     
     # print(f"DEBUG: Instance Path: {app.instance_path}")
