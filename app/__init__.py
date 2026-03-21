@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 from flask_wtf.csrf import CSRFError
 from sqlalchemy import inspect
+from sqlalchemy.exc import OperationalError
 from app.extensions import db, login_manager, migrate, csrf, oauth, limiter, mail
 from app.models import User, Project, Client, History, Task, ProjectOwner, ActivityLog, WorkHistoryReport
 from app.utils import t, get_lang, format_date, project_title, format_code, TRANSLATIONS
@@ -96,6 +97,16 @@ def create_app(config_class=None):
     # ------------------------------------
         
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f"sqlite:///{db_uri_path}"
+
+    db_uri = app.config['SQLALCHEMY_DATABASE_URI'] or ''
+    if db_uri.startswith('postgresql://') or db_uri.startswith('postgresql+psycopg2://'):
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_pre_ping': True,
+            'pool_recycle': int(os.getenv('DB_POOL_RECYCLE', '280')),
+            'pool_size': int(os.getenv('DB_POOL_SIZE', '5')),
+            'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '2')),
+            'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '30')),
+        }
     
     # print(f"DEBUG: Instance Path: {app.instance_path}")
     # print(f"DEBUG: DB Path: {db_path}")
@@ -120,8 +131,14 @@ def create_app(config_class=None):
     # User loader
     @login_manager.user_loader
     def load_user(user_id):
-        user = db.session.get(User, int(user_id))
-        return user
+        try:
+            return db.session.get(User, int(user_id))
+        except OperationalError:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            return None
 
     # Context processors
     @app.context_processor

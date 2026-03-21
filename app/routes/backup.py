@@ -3,16 +3,20 @@ import decimal
 import json
 import os
 import tempfile
+import threading
 import zipfile
 from datetime import date, datetime
 from flask import Blueprint, flash, redirect, render_template, request, send_file, url_for, current_app
 from flask_login import login_required
 from sqlalchemy import MetaData, Table, inspect, insert, select, text
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import OperationalError
 from app.extensions import db
 from app.utils import min_role_required, t
 
 backup_bp = Blueprint('backup', __name__)
+_backup_lock = threading.Lock()
+_backup_running = False
 
 def get_backup_dir():
     backup_dir = os.getenv('BACKUP_DIR') or os.path.join(current_app.instance_path, 'backups')
@@ -118,6 +122,72 @@ def _toposort_tables(tables, inspector):
     remaining.sort()
     return ordered + remaining
 
+def _create_postgres_backup_zip(app, backup_dir, final_path):
+    global _backup_running
+    try:
+        with app.app_context():
+            engine = db.engine
+            inspector = inspect(engine)
+            meta = MetaData()
+            table_names = [t for t in inspector.get_table_names() if t != 'alembic_version']
+
+            with tempfile.TemporaryDirectory(dir=backup_dir) as tmp_dir:
+                tables_dir = os.path.join(tmp_dir, 'tables')
+                os.makedirs(tables_dir, exist_ok=True)
+                manifest = {
+                    'created_at': datetime.utcnow().isoformat() + 'Z',
+                    'dialect': engine.dialect.name,
+                    'tables': table_names,
+                }
+                with open(os.path.join(tmp_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
+                    json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+                for table_name in table_names:
+                    table = Table(table_name, meta, autoload_with=engine)
+                    out_path = os.path.join(tables_dir, f"{table_name}.jsonl")
+                    with open(out_path, 'w', encoding='utf-8') as f:
+                        attempt = 0
+                        while True:
+                            try:
+                                rows = db.session.execute(select(table).execution_options(stream_results=True)).mappings()
+                                for row in rows:
+                                    f.write(json.dumps(dict(row), ensure_ascii=False, default=_json_default))
+                                    f.write("\n")
+                                break
+                            except OperationalError:
+                                attempt += 1
+                                try:
+                                    db.session.rollback()
+                                except Exception:
+                                    pass
+                                if attempt >= 2:
+                                    raise
+
+                tmp_zip = final_path + '.tmp'
+                with zipfile.ZipFile(tmp_zip, 'w', zipfile.ZIP_DEFLATED) as z:
+                    z.write(os.path.join(tmp_dir, 'manifest.json'), arcname='manifest.json')
+                    for table_name in table_names:
+                        z.write(os.path.join(tables_dir, f"{table_name}.jsonl"), arcname=f"tables/{table_name}.jsonl")
+                os.replace(tmp_zip, final_path)
+    except Exception:
+        try:
+            current_app.logger.exception("Backup background task failed")
+        except Exception:
+            pass
+        try:
+            tmp_zip = final_path + '.tmp'
+            if os.path.exists(tmp_zip):
+                os.remove(tmp_zip)
+        except Exception:
+            pass
+    finally:
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+        with _backup_lock:
+            _backup_running = False
+
 @backup_bp.route('/backup', endpoint='list')
 @login_required
 @min_role_required('admin')
@@ -160,34 +230,23 @@ def backup_db():
             with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
                 z.write(sqlite_path, arcname=os.path.basename(sqlite_path))
         else:
-            engine = db.engine
-            inspector = inspect(engine)
-            meta = MetaData()
-            table_names = [t for t in inspector.get_table_names() if t != 'alembic_version']
-            with tempfile.TemporaryDirectory(dir=backup_dir) as tmp_dir:
-                tables_dir = os.path.join(tmp_dir, 'tables')
-                os.makedirs(tables_dir, exist_ok=True)
-                manifest = {
-                    'created_at': datetime.utcnow().isoformat() + 'Z',
-                    'dialect': engine.dialect.name,
-                    'tables': table_names,
-                }
-                with open(os.path.join(tmp_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
-                    json.dump(manifest, f, ensure_ascii=False, indent=2)
+            with _backup_lock:
+                global _backup_running
+                if _backup_running:
+                    flash("Backup đang chạy, vui lòng chờ hoàn tất.", "warning")
+                    return redirect(url_for('backup.list'))
+                _backup_running = True
 
-                for table_name in table_names:
-                    table = Table(table_name, meta, autoload_with=engine)
-                    out_path = os.path.join(tables_dir, f"{table_name}.jsonl")
-                    with open(out_path, 'w', encoding='utf-8') as f:
-                        rows = db.session.execute(select(table)).mappings()
-                        for row in rows:
-                            f.write(json.dumps(dict(row), ensure_ascii=False, default=_json_default))
-                            f.write("\n")
+            app_obj = current_app._get_current_object()
+            t_worker = threading.Thread(
+                target=_create_postgres_backup_zip,
+                args=(app_obj, backup_dir, fp),
+                daemon=True,
+            )
+            t_worker.start()
 
-                with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
-                    z.write(os.path.join(tmp_dir, 'manifest.json'), arcname='manifest.json')
-                    for table_name in table_names:
-                        z.write(os.path.join(tables_dir, f"{table_name}.jsonl"), arcname=f"tables/{table_name}.jsonl")
+            flash("⏳ Đã bắt đầu tạo backup. Vui lòng đợi và tải lại trang sau vài phút.", "info")
+            return redirect(url_for('backup.list'))
 
         if not os.path.exists(fp) or os.path.getsize(fp) < 100:
             raise RuntimeError("Backup file is empty")
