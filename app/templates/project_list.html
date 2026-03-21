@@ -1086,11 +1086,11 @@
 
                         <!-- Actions -->
                         <td class="text-end">
-                            <div class="dropdown">
-                                <button class="action-btn" type="button" data-bs-toggle="dropdown">
+                            <div class="project-actions-dropdown" data-project-id="{{ p.id }}">
+                                <button class="action-btn project-actions-toggle" type="button">
                                     <i class="fas fa-ellipsis-v action-icon"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 project-actions-menu" data-project-id="{{ p.id }}">
                                     <li><h6 class="dropdown-header text-uppercase small fw-bold">{{ t('col_actions') }}</h6></li>
                                     <li><a class="dropdown-item" href="{{ url_for('projects.project_detail', project_id=p.id) }}"><i class="fas fa-eye me-2 text-primary"></i>{{ t('btn_view_details') }}</a></li>
                                     {% if current_user.role in ['admin','manager','leader'] or (current_user.role == 'secretary' and (status_filter == 'Quotation' or (p.status and (p.status.startswith('Quotation') or p.status.startswith('Quoting'))))) %}
@@ -1401,6 +1401,86 @@
             window.addEventListener('resize', onTableResize);
             setTableHeight();
         }
+
+        const body = document.body;
+        let openMenu = null;
+        let openTrigger = null;
+
+        function closeOpenMenu() {
+            if (openMenu) {
+                openMenu.classList.remove('show');
+                openMenu.style.display = 'none';
+                openMenu = null;
+                openTrigger = null;
+            }
+        }
+
+        function openProjectMenu(trigger, menu) {
+            const rect = trigger.getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.zIndex = '1050';
+            menu.style.display = 'block';
+            menu.classList.add('show');
+
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            const menuHeight = menu.offsetHeight;
+            const spaceBelow = viewportHeight - rect.bottom;
+            const spaceAbove = rect.top;
+
+            let top;
+            if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+                top = rect.top - menuHeight + rect.height;
+            } else {
+                top = rect.bottom;
+            }
+
+            menu.style.top = top + 'px';
+            menu.style.left = (rect.right - menu.offsetWidth) + 'px';
+
+            openMenu = menu;
+            openTrigger = trigger;
+        }
+
+        document.addEventListener('click', function(e) {
+            const toggle = e.target.closest('.project-actions-toggle');
+            if (toggle) {
+                e.preventDefault();
+                e.stopPropagation();
+                const container = toggle.closest('.project-actions-dropdown');
+                if (!container) return;
+                const projectId = container.getAttribute('data-project-id');
+                let menu = container.querySelector('.project-actions-menu');
+                if (!menu && projectId) {
+                    menu = document.querySelector('.project-actions-menu[data-project-id="' + projectId + '"]');
+                }
+                if (!menu) return;
+
+                if (!menu.dataset.portal) {
+                    body.appendChild(menu);
+                    menu.dataset.portal = '1';
+                }
+
+                if (openMenu === menu) {
+                    closeOpenMenu();
+                } else {
+                    closeOpenMenu();
+                    openProjectMenu(toggle, menu);
+                }
+                return;
+            }
+
+            if (openMenu && !openMenu.contains(e.target)) {
+                closeOpenMenu();
+            }
+        });
+
+        window.addEventListener('scroll', function() {
+            if (openMenu) closeOpenMenu();
+        }, true);
+
+        window.addEventListener('resize', function() {
+            if (openMenu) closeOpenMenu();
+        });
     });
 </script>
 
